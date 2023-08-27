@@ -125,8 +125,7 @@ impl RESPParser {
             }
             // Error
             b'-' => {
-                let string = String::from_utf8(line.to_vec()).expect("Can not convert bytes to string");
-                return Ok(DataType::Error(string));
+                return Ok(DataType::Error(Self::read_string(line.to_vec())));
             }
             _ => {
                 return Err(String::from("Unknown type symbol"));
@@ -296,6 +295,28 @@ mod tests {
         assert_eq!(null_expected, null_actual);
         assert_eq!(empty_array_expected, empty_array_actual);
         assert_eq!(nested_array_expected, nested_array_actual);
+    }
+
+    #[test]
+    fn test_parse_error() {
+        // given
+        let test_messages = vec![
+            "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n",
+            "-ERR unknown command 'foobar'\r\n",
+        ];
+        let stream = get_test_stream(test_messages);
+        let mut parser = RESPParser::new(stream);
+
+        // when
+        let wrong_type_actual = parser.parse_next().expect("Can not parse next");
+        let unknown_command_actual = parser.parse_next().expect("Can not parse next");
+
+        // then
+        let wrong_type_expected = DataType::Error(String::from("WRONGTYPE Operation against a key holding the wrong kind of value"));
+        let unknown_command_expected = DataType::Error(String::from("ERR unknown command 'foobar'"));
+
+        assert_eq!(wrong_type_expected, wrong_type_actual);
+        assert_eq!(unknown_command_expected, unknown_command_actual);
     }
 
     fn get_test_stream(messages: Vec<&str>) -> TcpStream {
