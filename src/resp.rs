@@ -108,9 +108,20 @@ impl RESPParser {
             }
             // Array
             b'*' => {
-                let string = String::from_utf8(line.to_vec()).expect("Can not convert bytes to string");
-                let integer = string.parse::<i64>().expect("Can not parse string to integer");
-                return Ok(DataType::Integer(integer));
+                let length = Self::read_int(line);
+
+                // if length is 0 or negative, then it is empty
+                if length <= 0 {
+                    return Ok(DataType::Array(vec![]));
+                }
+
+                let mut array = Vec::with_capacity(length as usize);
+                for _ in 0..length {
+                    let data_type = self.parse_next().expect("Can not parse next");
+                    array.push(data_type);
+                }
+
+                return Ok(DataType::Array(array));
             }
             // Error
             b'-' => {
@@ -223,6 +234,68 @@ mod tests {
         assert_eq!(abcd12345_expected, abcd12345_actual);
         assert_eq!(null_expected, null_actual);
         assert_eq!(empty_string_expected, empty_string_actual);
+    }
+
+    #[test]
+    fn test_parse_array() {
+        // given
+        let test_messages = vec![
+            "*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n",
+            "*4\r\n:1\r\n:2\r\n:3\r\n+echo\r\n",
+            "*5\r\n:1\r\n:2\r\n:3\r\n:4\r\n$6\r\nfoobar\r\n",
+            "*-1\r\n",
+            "*0\r\n",
+            "*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+Foo\r\n-Bar\r\n"
+        ];
+        let stream = get_test_stream(test_messages);
+        let mut parser = RESPParser::new(stream);
+
+        // when
+        let foo_bar_actual = parser.parse_next().expect("Can not parse next");
+        let one_two_three_echo_actual = parser.parse_next().expect("Can not parse next");
+        let one_two_three_four_foobar_actual = parser.parse_next().expect("Can not parse next");
+        let null_actual = parser.parse_next().expect("Can not parse next");
+        let empty_array_actual = parser.parse_next().expect("Can not parse next");
+        let nested_array_actual = parser.parse_next().expect("Can not parse next");
+
+        // then
+        let foo_bar_expected = DataType::Array(vec![
+            DataType::BulkString(String::from("foo")),
+            DataType::BulkString(String::from("bar")),
+        ]);
+        let one_two_three_echo_expected = DataType::Array(vec![
+            DataType::Integer(1),
+            DataType::Integer(2),
+            DataType::Integer(3),
+            DataType::SimpleString(String::from("echo")),
+        ]);
+        let one_two_three_four_foobar_expected = DataType::Array(vec![
+            DataType::Integer(1),
+            DataType::Integer(2),
+            DataType::Integer(3),
+            DataType::Integer(4),
+            DataType::BulkString(String::from("foobar")),
+        ]);
+        let null_expected = DataType::Array(vec![]);
+        let empty_array_expected = DataType::Array(vec![]);
+        let nested_array_expected = DataType::Array(vec![
+            DataType::Array(vec![
+                DataType::Integer(1),
+                DataType::Integer(2),
+                DataType::Integer(3),
+            ]),
+            DataType::Array(vec![
+                DataType::SimpleString(String::from("Foo")),
+                DataType::Error(String::from("Bar")),
+            ]),
+        ]);
+
+        assert_eq!(foo_bar_expected, foo_bar_actual);
+        assert_eq!(one_two_three_echo_expected, one_two_three_echo_actual);
+        assert_eq!(one_two_three_four_foobar_expected, one_two_three_four_foobar_actual);
+        assert_eq!(null_expected, null_actual);
+        assert_eq!(empty_array_expected, empty_array_actual);
+        assert_eq!(nested_array_expected, nested_array_actual);
     }
 
     fn get_test_stream(messages: Vec<&str>) -> TcpStream {
