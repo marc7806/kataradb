@@ -1,12 +1,14 @@
-use std::fmt::format;
-use std::fs::read;
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::io::{BufRead, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, TcpListener, TcpStream};
 
-// Implement I/O Multiplexing, single-threaded event-loop
+use crate::resp::RESPParser;
 
+pub mod resp;
+
+// Implement I/O Multiplexing, single-threaded event-loop
 const PORT: i16 = 9977;
 const ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)); // IPv4 addresses are 32bit sized
+const TEMP_BUFFER_SIZE: usize = 512;
 
 fn main() {
     println!("Starting kataradb");
@@ -30,14 +32,13 @@ fn main() {
     }
 }
 
-fn handle_connection(stream: TcpStream) {
-    let mut reader = BufReader::new(&stream);
-    let mut writer = BufWriter::new(&stream);
+// Architecture
+// Parser holds temporary buffer in which it reads max X bytes from the stream (x is configurable)
+// Reading stops after \r\n is found
+// then decoding of sequence starts
+// then you can repeat reading bytes from stream
 
-    for line in reader.lines() {
-        let receive_message = line.unwrap();
-        println!("{}", receive_message);
-        writer.write(format!("Echo: {} \n", receive_message).as_bytes()).expect("Can not send answer");
-        writer.flush().expect("Can not flush message on BufWriter");
-    }
+fn handle_connection(mut stream: TcpStream) {
+    let mut parser = RESPParser::new(stream);
+    parser.parse_next().expect("Can not parse next");
 }
