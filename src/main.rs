@@ -31,7 +31,10 @@ fn main() {
     }
 }
 
-fn handle_connection(mut stream: TcpStream) {
+fn handle_connection(stream: TcpStream) {
     let mut parser = RESPParser::new(stream);
-    parser.parse_next().expect("Can not parse next");
+
+    while let Ok(data_type) = parser.parse_next() {
+        println!("Got command: {:?}", data_type);
+    }
 }
