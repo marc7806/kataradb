@@ -25,7 +25,9 @@ enum TypeSymbol {
 #[derive(PartialEq)]
 pub enum DataType {
     SimpleString(String),
-    Integer(i64), // i64 because int can be negative
+    Integer(i64),
+    // i64 because int can be negative
+    // Defines fixed length. It is binary safe. Good to send any kind of data, also \r\n
     BulkString(String),
     Array(Vec<DataType>),
     Error(String),
@@ -70,6 +72,7 @@ impl RESPParser {
         println!("Received: {:?}", line);
 
         let type_symbol = line[0];
+        println!("Type symbol: {}", Self::read_string(vec![type_symbol]));
 
         // parse bytes to data type starting from second byte (first byte is a type symbol)
         let line = &line[1..];
@@ -77,18 +80,31 @@ impl RESPParser {
         match type_symbol {
             // Simple String
             b'+' => {
-                let string = String::from_utf8(line.to_vec()).expect("Can not convert bytes to string");
-                return Ok(DataType::SimpleString(string));
+                return Ok(DataType::SimpleString(Self::read_string(line.to_vec())));
             }
             // Integer
             b':' => {
-                let integer = String::from_utf8(line.to_vec()).expect("Can not convert bytes to string").parse::<i64>().expect("Can not parse string to integer");
+                let integer = Self::read_int(line);
                 return Ok(DataType::Integer(integer));
             }
             // Bulk String
             b'$' => {
-                let string = String::from_utf8(line.to_vec()).expect("Can not convert bytes to string");
-                return Ok(DataType::BulkString(string));
+                let length = Self::read_int(line);
+
+                // if length is 0 or negative, then it is empty
+                if length <= 0 {
+                    return Ok(DataType::BulkString(String::from("")));
+                }
+
+                // +2 because of CRLF
+                let mut bulk_string_buffer = vec![0; length as usize];
+                self.stream.read_exact(&mut bulk_string_buffer).expect("Can not read bulk string bytes");
+
+                // read ending CRLF
+                self.stream.read_exact(&mut [0; 2]).expect("Can not read \r\n bytes");
+
+                let bulk_string = Self::read_string(bulk_string_buffer);
+                return Ok(DataType::BulkString(bulk_string));
             }
             // Array
             b'*' => {
@@ -105,8 +121,14 @@ impl RESPParser {
                 return Err(String::from("Unknown type symbol"));
             }
         }
+    }
 
+    fn read_string(buffer: Vec<u8>) -> String {
+        return String::from_utf8(buffer).expect("Can not convert bytes to string");
+    }
 
+    fn read_int(line: &[u8]) -> i64 {
+        return Self::read_string(line.to_vec()).parse::<i64>().expect("Can not parse string to integer");
     }
 }
 
@@ -171,6 +193,36 @@ mod tests {
         assert_eq!(one_hundred_twenty_three_expected, one_hundred_twenty_three_actual);
         assert_eq!(minus_one_expected, minus_one_actual);
         assert_eq!(minus_one_hundred_twenty_three_expected, minus_one_hundred_twenty_three_actual);
+    }
+
+    #[test]
+    fn test_parse_bulk_string() {
+        // given
+        let test_messages = vec![
+            "$6\r\nfoobar\r\n",
+            "$9\r\nabc\r\n2345\r\n",
+            "$-1\r\n",
+            "$0\r\n\r\n",
+        ];
+        let stream = get_test_stream(test_messages);
+        let mut parser = RESPParser::new(stream);
+
+        // when
+        let foobar_actual = parser.parse_next().expect("Can not parse next");
+        let abcd12345_actual = parser.parse_next().expect("Can not parse next");
+        let null_actual = parser.parse_next().expect("Can not parse next");
+        let empty_string_actual = parser.parse_next().expect("Can not parse next");
+
+        // then
+        let foobar_expected = DataType::BulkString(String::from("foobar"));
+        let abcd12345_expected = DataType::BulkString(String::from("abc\r\n2345"));
+        let null_expected = DataType::BulkString(String::from(""));
+        let empty_string_expected = DataType::BulkString(String::from(""));
+
+        assert_eq!(foobar_expected, foobar_actual);
+        assert_eq!(abcd12345_expected, abcd12345_actual);
+        assert_eq!(null_expected, null_actual);
+        assert_eq!(empty_string_expected, empty_string_actual);
     }
 
     fn get_test_stream(messages: Vec<&str>) -> TcpStream {
