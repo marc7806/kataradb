@@ -17,7 +17,7 @@ use std::net::TcpStream;
 const TEMP_BUFFER_SIZE: usize = 512;
 
 pub struct RESPParser {
-    pub stream: TcpStream,
+    stream: TcpStream,
     // Temporary buffer used for holding a sequence of bytes until the next CRLF( \r\n )
     line_buffer: Vec<u8>,
 }
@@ -145,6 +145,10 @@ impl RESPParser {
 
     fn read_int(line: &[u8]) -> i64 {
         return Self::read_string(line.to_vec()).parse::<i64>().expect("Can not parse string to integer");
+    }
+
+    fn get_stream(&self) -> &TcpStream {
+        return &self.stream;
     }
 }
 
