@@ -51,7 +51,6 @@ impl RESPParser {
         let mut tcp_stream = &self.stream.try_clone().expect("Can not clone stream");
         for byte in tcp_stream.bytes() {
             let byte = byte.expect("Can not read byte");
-            println!("{}", byte);
 
             if byte == b'\r' {
                 // stop parsing on carriage return
@@ -69,10 +68,7 @@ impl RESPParser {
     /// Parses next sequence of bytes from the stream and decodes it to a [`DataType`]
     pub fn parse_next(&mut self) -> Result<DataType, String> {
         let line = self.read_line();
-        println!("Received: {:?}", line);
-
         let type_symbol = line[0];
-        println!("Type symbol: {}", Self::read_string(vec![type_symbol]));
 
         // parse bytes to data type starting from second byte (first byte is a type symbol)
         let line = &line[1..];
