@@ -2,9 +2,19 @@ use std::i64;
 use std::io::Read;
 use std::net::TcpStream;
 
-use crate::TEMP_BUFFER_SIZE;
-
-/// RESPParser is responsible for parsing Redis Serialization protocol (RESP)
+/// RESPParser is responsible for parsing Redis Serialization protocol (RESP2)
+/// https://redis.io/topics/protocol
+///
+/// RESP2 is a binary-safe protocol, meaning you can use it to transmit any kind of data, not only strings.
+/// This is a huge advantage compared to protocols such as HTTP for instance, where the request or response body can only be a string.
+///
+/// Architecture
+/// Parser holds temporary buffer in which it reads max X bytes from the stream (x is configurable)
+/// Reading stops after \r\n is found
+///
+/// Author: marc7806
+///
+const TEMP_BUFFER_SIZE: usize = 512;
 
 pub struct RESPParser {
     pub stream: TcpStream,
@@ -73,15 +83,15 @@ impl RESPParser {
         // parse bytes to data type starting from second byte (first byte is a type symbol)
         let line = &line[1..];
 
-        match type_symbol {
+        return match type_symbol {
             // Simple String
             b'+' => {
-                return Ok(DataType::SimpleString(Self::read_string(line.to_vec())));
+                Ok(DataType::SimpleString(Self::read_string(line.to_vec())))
             }
             // Integer
             b':' => {
                 let integer = Self::read_int(line);
-                return Ok(DataType::Integer(integer));
+                Ok(DataType::Integer(integer))
             }
             // Bulk String
             b'$' => {
@@ -100,7 +110,7 @@ impl RESPParser {
                 self.stream.read_exact(&mut [0; 2]).expect("Can not read \r\n bytes");
 
                 let bulk_string = Self::read_string(bulk_string_buffer);
-                return Ok(DataType::BulkString(bulk_string));
+                Ok(DataType::BulkString(bulk_string))
             }
             // Array
             b'*' => {
@@ -117,14 +127,14 @@ impl RESPParser {
                     array.push(data_type);
                 }
 
-                return Ok(DataType::Array(array));
+                Ok(DataType::Array(array))
             }
             // Error
             b'-' => {
-                return Ok(DataType::Error(Self::read_string(line.to_vec())));
+                Ok(DataType::Error(Self::read_string(line.to_vec())))
             }
             _ => {
-                return Err(String::from("Unknown type symbol"));
+                Err(String::from("Unknown type symbol"))
             }
         }
     }
