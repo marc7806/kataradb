@@ -1,5 +1,5 @@
 use std::i64;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::TcpStream;
 
 /// RESPParser is responsible for parsing Redis Serialization protocol (RESP2)
@@ -75,8 +75,32 @@ impl RESPParser {
         return &self.line_buffer;
     }
 
+    pub fn encode(&mut self, data_type: DataType) -> String {
+        return match data_type {
+            DataType::SimpleString(string) => {
+                format!("+{}\r\n", string)
+            }
+            DataType::Integer(integer) => {
+                format!(":{}\r\n", integer)
+            }
+            DataType::BulkString(string) => {
+                format!("${}\r\n{}\r\n", string.len(), string)
+            }
+            DataType::Array(array) => {
+                let mut encoded_array = format!("*{}\r\n", array.len());
+                for data_type in array {
+                    encoded_array.push_str(&self.encode(data_type));
+                }
+                encoded_array
+            }
+            DataType::Error(error) => {
+                format!("-{}\r\n", error)
+            }
+        }
+    }
+
     /// Parses next sequence of bytes from the stream and decodes it to a [`DataType`]
-    pub fn parse_next(&mut self) -> Result<DataType, String> {
+    pub fn decode_next(&mut self) -> Result<DataType, String> {
         let line = self.read_line();
         let type_symbol = line[0];
 
@@ -123,7 +147,7 @@ impl RESPParser {
 
                 let mut array = Vec::with_capacity(length as usize);
                 for _ in 0..length {
-                    let data_type = self.parse_next().expect("Can not parse next");
+                    let data_type = self.decode_next().expect("Can not parse next");
                     array.push(data_type);
                 }
 
@@ -147,8 +171,13 @@ impl RESPParser {
         return Self::read_string(line.to_vec()).parse::<i64>().expect("Can not parse string to integer");
     }
 
-    fn get_stream(&self) -> &TcpStream {
-        return &self.stream;
+    pub fn write_to_stream(&mut self, data: DataType) {
+        let encoded_data = self.encode(data);
+        self.stream.write_all(encoded_data.as_bytes()).expect("Can not write to stream");
+    }
+
+    pub fn flush_stream(&mut self) {
+        self.stream.flush().expect("Can not flush stream");
     }
 }
 
@@ -170,8 +199,8 @@ mod tests {
         let mut parser = RESPParser::new(stream);
 
         // when
-        let ok_actual = parser.parse_next().expect("Can not parse next");
-        let echo_actual = parser.parse_next().expect("Can not parse next");
+        let ok_actual = parser.decode_next().expect("Can not parse next");
+        let echo_actual = parser.decode_next().expect("Can not parse next");
 
         // then
         let ok_expected = DataType::SimpleString(String::from("OK"));
@@ -195,11 +224,11 @@ mod tests {
         let mut parser = RESPParser::new(stream);
 
         // when
-        let zero_actual = parser.parse_next().expect("Can not parse next");
-        let one_actual = parser.parse_next().expect("Can not parse next");
-        let one_hundred_twenty_three_actual = parser.parse_next().expect("Can not parse next");
-        let minus_one_actual = parser.parse_next().expect("Can not parse next");
-        let minus_one_hundred_twenty_three_actual = parser.parse_next().expect("Can not parse next");
+        let zero_actual = parser.decode_next().expect("Can not parse next");
+        let one_actual = parser.decode_next().expect("Can not parse next");
+        let one_hundred_twenty_three_actual = parser.decode_next().expect("Can not parse next");
+        let minus_one_actual = parser.decode_next().expect("Can not parse next");
+        let minus_one_hundred_twenty_three_actual = parser.decode_next().expect("Can not parse next");
 
         // then
         let zero_expected = DataType::Integer(0);
@@ -228,10 +257,10 @@ mod tests {
         let mut parser = RESPParser::new(stream);
 
         // when
-        let foobar_actual = parser.parse_next().expect("Can not parse next");
-        let abcd12345_actual = parser.parse_next().expect("Can not parse next");
-        let null_actual = parser.parse_next().expect("Can not parse next");
-        let empty_string_actual = parser.parse_next().expect("Can not parse next");
+        let foobar_actual = parser.decode_next().expect("Can not parse next");
+        let abcd12345_actual = parser.decode_next().expect("Can not parse next");
+        let null_actual = parser.decode_next().expect("Can not parse next");
+        let empty_string_actual = parser.decode_next().expect("Can not parse next");
 
         // then
         let foobar_expected = DataType::BulkString(String::from("foobar"));
@@ -260,12 +289,12 @@ mod tests {
         let mut parser = RESPParser::new(stream);
 
         // when
-        let foo_bar_actual = parser.parse_next().expect("Can not parse next");
-        let one_two_three_echo_actual = parser.parse_next().expect("Can not parse next");
-        let one_two_three_four_foobar_actual = parser.parse_next().expect("Can not parse next");
-        let null_actual = parser.parse_next().expect("Can not parse next");
-        let empty_array_actual = parser.parse_next().expect("Can not parse next");
-        let nested_array_actual = parser.parse_next().expect("Can not parse next");
+        let foo_bar_actual = parser.decode_next().expect("Can not parse next");
+        let one_two_three_echo_actual = parser.decode_next().expect("Can not parse next");
+        let one_two_three_four_foobar_actual = parser.decode_next().expect("Can not parse next");
+        let null_actual = parser.decode_next().expect("Can not parse next");
+        let empty_array_actual = parser.decode_next().expect("Can not parse next");
+        let nested_array_actual = parser.decode_next().expect("Can not parse next");
 
         // then
         let foo_bar_expected = DataType::Array(vec![
@@ -318,8 +347,8 @@ mod tests {
         let mut parser = RESPParser::new(stream);
 
         // when
-        let wrong_type_actual = parser.parse_next().expect("Can not parse next");
-        let unknown_command_actual = parser.parse_next().expect("Can not parse next");
+        let wrong_type_actual = parser.decode_next().expect("Can not parse next");
+        let unknown_command_actual = parser.decode_next().expect("Can not parse next");
 
         // then
         let wrong_type_expected = DataType::Error(String::from("WRONGTYPE Operation against a key holding the wrong kind of value"));

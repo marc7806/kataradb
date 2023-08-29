@@ -1,6 +1,7 @@
 use std::io::{BufRead, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, TcpListener, TcpStream};
 
+use crate::resp::DataType::SimpleString;
 use crate::resp::RESPParser;
 
 pub mod resp;
@@ -34,7 +35,23 @@ fn main() {
 fn handle_connection(stream: TcpStream) {
     let mut parser = RESPParser::new(stream);
 
-    while let Ok(data_type) = parser.parse_next() {
+    while let Ok(data_type) = parser.decode_next() {
         println!("Got command: {:?}", data_type);
+        // handle ping command
+        match data_type {
+            resp::DataType::Array(array) => {
+                let cmd = &array[0];
+
+                if cmd == &SimpleString(String::from("PING")) {
+                    parser.write_to_stream(SimpleString(String::from("PONG")));
+                    parser.flush_stream();
+                } else {
+                    println!("Got not supported command");
+                }
+            }
+            _ => {
+                println!("Got not supported command");
+            }
+        }
     }
 }
