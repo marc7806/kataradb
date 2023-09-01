@@ -5,6 +5,7 @@ use crate::resp::{DataType, RESPParser};
 use crate::resp::DataType::{BulkString, SimpleString};
 
 pub mod resp;
+pub mod event_loop;
 
 // Implement I/O Multiplexing, single-threaded event-loop
 const PORT: i16 = 9977;
@@ -13,23 +14,25 @@ const ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)); // IPv4 address
 fn main() {
     println!("Starting kataradb");
 
-    let listener = TcpListener::bind(format!("{ADDRESS}:{PORT}")).expect("Can not create TCP listener");
+    event_loop::setup_server();
 
-    println!("Waiting for connections...");
-
-    // accept TCP connections and process them sequentially
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                println!("Connected to new client");
-                handle_connection(stream)
-            }
-            Err(e) => {
-                eprintln!("Error handling stream: {e}");
-                continue;
-            }
-        }
-    }
+    // let listener = TcpListener::bind(format!("{ADDRESS}:{PORT}")).expect("Can not create TCP listener");
+    //
+    // println!("Waiting for connections...");
+    //
+    // // accept TCP connections and process them sequentially
+    // for stream in listener.incoming() {
+    //     match stream {
+    //         Ok(stream) => {
+    //             println!("Connected to new client");
+    //             handle_connection(stream)
+    //         }
+    //         Err(e) => {
+    //             eprintln!("Error handling stream: {e}");
+    //             continue;
+    //         }
+    //     }
+    // }
 }
 
 fn handle_connection(stream: TcpStream) {
