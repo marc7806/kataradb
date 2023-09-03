@@ -7,6 +7,7 @@ use libc::timespec;
 
 use crate::io_multiplexer::darwin_io_multiplexer::DarwinIOMultiplexer;
 use crate::io_multiplexer::io_multiplexer::{Event, IOMultiplexer};
+use crate::resp::RESPParser;
 
 const PORT: i16 = 9977;
 const ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
@@ -58,6 +59,9 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd) {
                         }
 
                         println!("Received data from client");
+
+                        let mut parser = RESPParser::new();
+
                         let mut buf = [0; 1024];
                         stream.read(&mut buf).expect("Can not read from stream");
                         println!("Got data: {:?}", buf);

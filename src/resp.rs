@@ -14,10 +14,9 @@ use std::net::TcpStream;
 ///
 /// Author: marc7806
 ///
-const TEMP_BUFFER_SIZE: usize = 512;
+const TEMP_BUFFER_SIZE: usize = 1024;
 
 pub struct RESPParser {
-    stream: TcpStream,
     // Temporary buffer used for holding a sequence of bytes until the next CRLF( \r\n )
     line_buffer: Vec<u8>,
 }
@@ -44,28 +43,26 @@ pub enum DataType {
 }
 
 impl RESPParser {
-    pub fn new(stream: TcpStream) -> RESPParser {
+    pub fn new() -> RESPParser {
         return RESPParser {
-            stream,
             line_buffer: Vec::with_capacity(TEMP_BUFFER_SIZE),
         };
     }
 
-    fn read_line(&mut self) -> &Vec<u8> {
+    fn read_line(&mut self, stream: &mut TcpStream) -> &Vec<u8> {
         if self.line_buffer.len() > 0 {
             // clear buffer if it is not empty
             self.line_buffer.clear();
         }
 
         // Parse sequence of bytes until next CRLF
-        let mut tcp_stream = &self.stream.try_clone().expect("Can not clone stream");
-        for byte in tcp_stream.bytes() {
+        for byte in stream.bytes() {
             let byte = byte.expect("Can not read byte");
 
             if byte == b'\r' {
                 // stop parsing on carriage return
                 // read \n byte followed by \r
-                &tcp_stream.read_exact(&mut [0; 1]).expect("Can not read \n byte");
+                stream.read_exact(&mut [0; 1]).expect("Can not read \n byte");
                 break;
             }
 
@@ -96,12 +93,12 @@ impl RESPParser {
             DataType::Error(error) => {
                 format!("-{}\r\n", error)
             }
-        }
+        };
     }
 
     /// Parses next sequence of bytes from the stream and decodes it to a [`DataType`]
-    pub fn decode_next(&mut self) -> Result<DataType, String> {
-        let line = self.read_line();
+    pub fn decode_next(&mut self, stream: &mut TcpStream) -> Result<DataType, String> {
+        let line = self.read_line(stream);
         let type_symbol = line[0];
 
         // parse bytes to data type starting from second byte (first byte is a type symbol)
@@ -128,10 +125,10 @@ impl RESPParser {
 
                 // +2 because of CRLF
                 let mut bulk_string_buffer = vec![0; length as usize];
-                self.stream.read_exact(&mut bulk_string_buffer).expect("Can not read bulk string bytes");
+                stream.read_exact(&mut bulk_string_buffer).expect("Can not read bulk string bytes");
 
                 // read ending CRLF
-                self.stream.read_exact(&mut [0; 2]).expect("Can not read \r\n bytes");
+                stream.read_exact(&mut [0; 2]).expect("Can not read \r\n bytes");
 
                 let bulk_string = Self::read_string(bulk_string_buffer);
                 Ok(DataType::BulkString(bulk_string))
@@ -147,7 +144,7 @@ impl RESPParser {
 
                 let mut array = Vec::with_capacity(length as usize);
                 for _ in 0..length {
-                    let data_type = self.decode_next().expect("Can not parse next");
+                    let data_type = self.decode_next(stream).expect("Can not parse next");
                     array.push(data_type);
                 }
 
@@ -160,7 +157,7 @@ impl RESPParser {
             _ => {
                 Err(String::from("Unknown type symbol"))
             }
-        }
+        };
     }
 
     fn read_string(buffer: Vec<u8>) -> String {
@@ -171,13 +168,13 @@ impl RESPParser {
         return Self::read_string(line.to_vec()).parse::<i64>().expect("Can not parse string to integer");
     }
 
-    pub fn write_to_stream(&mut self, data: DataType) {
+    pub fn write_to_stream(&mut self, stream: &mut TcpStream, data: DataType) {
         let encoded_data = self.encode(data);
-        self.stream.write_all(encoded_data.as_bytes()).expect("Can not write to stream");
+        stream.write_all(encoded_data.as_bytes()).expect("Can not write to stream");
     }
 
-    pub fn flush_stream(&mut self) {
-        self.stream.flush().expect("Can not flush stream");
+    pub fn flush_stream(&mut self, stream: &mut TcpStream) {
+        stream.flush().expect("Can not flush stream");
     }
 }
 
@@ -185,6 +182,8 @@ impl RESPParser {
 mod tests {
     use std::io::Write;
     use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener};
+
+    use rand::Rng;
 
     use super::*;
 
@@ -195,12 +194,12 @@ mod tests {
             "+OK\r\n",
             "+Echo\r\n",
         ];
-        let stream = get_test_stream(test_messages);
-        let mut parser = RESPParser::new(stream);
+        let mut stream = get_test_stream(test_messages);
+        let mut parser = RESPParser::new();
 
         // when
-        let ok_actual = parser.decode_next().expect("Can not parse next");
-        let echo_actual = parser.decode_next().expect("Can not parse next");
+        let ok_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let echo_actual = parser.decode_next(&mut stream).expect("Can not parse next");
 
         // then
         let ok_expected = DataType::SimpleString(String::from("OK"));
@@ -220,15 +219,15 @@ mod tests {
             ":-1\r\n",
             ":-123\r\n",
         ];
-        let stream = get_test_stream(test_messages);
-        let mut parser = RESPParser::new(stream);
+        let mut stream = get_test_stream(test_messages);
+        let mut parser = RESPParser::new();
 
         // when
-        let zero_actual = parser.decode_next().expect("Can not parse next");
-        let one_actual = parser.decode_next().expect("Can not parse next");
-        let one_hundred_twenty_three_actual = parser.decode_next().expect("Can not parse next");
-        let minus_one_actual = parser.decode_next().expect("Can not parse next");
-        let minus_one_hundred_twenty_three_actual = parser.decode_next().expect("Can not parse next");
+        let zero_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let one_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let one_hundred_twenty_three_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let minus_one_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let minus_one_hundred_twenty_three_actual = parser.decode_next(&mut stream).expect("Can not parse next");
 
         // then
         let zero_expected = DataType::Integer(0);
@@ -253,14 +252,14 @@ mod tests {
             "$-1\r\n",
             "$0\r\n\r\n",
         ];
-        let stream = get_test_stream(test_messages);
-        let mut parser = RESPParser::new(stream);
+        let mut stream = get_test_stream(test_messages);
+        let mut parser = RESPParser::new();
 
         // when
-        let foobar_actual = parser.decode_next().expect("Can not parse next");
-        let abcd12345_actual = parser.decode_next().expect("Can not parse next");
-        let null_actual = parser.decode_next().expect("Can not parse next");
-        let empty_string_actual = parser.decode_next().expect("Can not parse next");
+        let foobar_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let abcd12345_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let null_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let empty_string_actual = parser.decode_next(&mut stream).expect("Can not parse next");
 
         // then
         let foobar_expected = DataType::BulkString(String::from("foobar"));
@@ -283,18 +282,18 @@ mod tests {
             "*5\r\n:1\r\n:2\r\n:3\r\n:4\r\n$6\r\nfoobar\r\n",
             "*-1\r\n",
             "*0\r\n",
-            "*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+Foo\r\n-Bar\r\n"
+            "*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+Foo\r\n-Bar\r\n",
         ];
-        let stream = get_test_stream(test_messages);
-        let mut parser = RESPParser::new(stream);
+        let mut stream = get_test_stream(test_messages);
+        let mut parser = RESPParser::new();
 
         // when
-        let foo_bar_actual = parser.decode_next().expect("Can not parse next");
-        let one_two_three_echo_actual = parser.decode_next().expect("Can not parse next");
-        let one_two_three_four_foobar_actual = parser.decode_next().expect("Can not parse next");
-        let null_actual = parser.decode_next().expect("Can not parse next");
-        let empty_array_actual = parser.decode_next().expect("Can not parse next");
-        let nested_array_actual = parser.decode_next().expect("Can not parse next");
+        let foo_bar_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let one_two_three_echo_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let one_two_three_four_foobar_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let null_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let empty_array_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let nested_array_actual = parser.decode_next(&mut stream).expect("Can not parse next");
 
         // then
         let foo_bar_expected = DataType::Array(vec![
@@ -343,12 +342,12 @@ mod tests {
             "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n",
             "-ERR unknown command 'foobar'\r\n",
         ];
-        let stream = get_test_stream(test_messages);
-        let mut parser = RESPParser::new(stream);
+        let mut stream = get_test_stream(test_messages);
+        let mut parser = RESPParser::new();
 
         // when
-        let wrong_type_actual = parser.decode_next().expect("Can not parse next");
-        let unknown_command_actual = parser.decode_next().expect("Can not parse next");
+        let wrong_type_actual = parser.decode_next(&mut stream).expect("Can not parse next");
+        let unknown_command_actual = parser.decode_next(&mut stream).expect("Can not parse next");
 
         // then
         let wrong_type_expected = DataType::Error(String::from("WRONGTYPE Operation against a key holding the wrong kind of value"));
@@ -359,17 +358,27 @@ mod tests {
     }
 
     fn get_test_stream(messages: Vec<&str>) -> TcpStream {
-        let mut listener = TcpListener::bind(get_test_ipv4()).expect("Can not bind test listener for accepting connections");
-        let mut client = TcpStream::connect(get_test_ipv4()).expect("Can not create test client to connect to test listener");
+        let addr = get_test_ipv4();
+        let mut listener = TcpListener::bind(addr).expect("Can not bind test listener for accepting connections");
+        let mut listener_guard = scopeguard::guard(listener, |listener| {
+            println!("Closing test listener");
+            drop(listener)
+        });
+        let mut client = TcpStream::connect(addr).expect("Can not create test client to connect to test listener");
 
         for message in messages {
             client.write(message.as_bytes()).expect("Can not write message to test client");
         }
 
-        return listener.accept().expect("Can not accept client connection on test tcp listener").0;
+        return listener_guard.accept().expect("Can not accept client connection on test tcp listener").0;
     }
 
     fn get_test_ipv4() -> SocketAddr {
-        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 9999))
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), get_random_port()))
+    }
+
+    fn get_random_port() -> u16 {
+        let mut rng = rand::thread_rng();
+        rng.gen_range(1024..65535)
     }
 }
