@@ -9,13 +9,12 @@ pub fn handle_cmd(parser: &mut RESPParser, data_type: DataType, stream: &mut Tcp
         DataType::Array(array) => {
             let cmd = &array[0];
 
-            if cmd == &BulkString(String::from("COMMAND")) {
-                parser.write_to_stream(stream, SimpleString(String::from("OK")));
-                parser.flush_stream(stream);
-            } else if cmd == &BulkString(String::from("PING")) {
+            if cmd == &BulkString(String::from("PING")) {
                 parser.write_to_stream(stream, SimpleString(String::from("PONG")));
                 parser.flush_stream(stream);
             } else {
+                parser.write_to_stream(stream, SimpleString(String::from("OK")));
+                parser.flush_stream(stream);
             }
         }
         _ => {
