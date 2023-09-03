@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr, TcpListener};
 use std::os::fd::{AsRawFd, RawFd};
 
 use libc::timespec;
 
+use crate::cmd::handle_cmd;
 use crate::io_multiplexer::darwin_io_multiplexer::DarwinIOMultiplexer;
 use crate::io_multiplexer::io_multiplexer::{Event, IOMultiplexer};
 use crate::resp::RESPParser;
@@ -61,10 +61,9 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd) {
                         println!("Received data from client");
 
                         let mut parser = RESPParser::new();
-
-                        let mut buf = [0; 1024];
-                        stream.read(&mut buf).expect("Can not read from stream");
-                        println!("Got data: {:?}", buf);
+                        let data_type = parser.decode_next(stream).expect("Can not decode data type");
+                        println!("Got command: {:?}", data_type);
+                        handle_cmd(&mut parser, data_type, stream);
                     }
 
                 }
