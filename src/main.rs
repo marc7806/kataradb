@@ -1,10 +1,11 @@
 use std::io::{BufRead, Read, Write};
-use std::net::{IpAddr, Ipv4Addr, TcpListener, TcpStream};
+use std::net::{IpAddr, Ipv4Addr, TcpStream};
 
 use crate::resp::{DataType, RESPParser};
 use crate::resp::DataType::{BulkString, SimpleString};
 
 pub mod resp;
+pub mod io_multiplexer;
 pub mod event_loop;
 
 // Implement I/O Multiplexing, single-threaded event-loop
