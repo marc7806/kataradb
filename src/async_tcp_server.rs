@@ -62,7 +62,6 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd) {
 
                         let mut parser = RESPParser::new();
                         let data_type = parser.decode_next(stream).expect("Can not decode data type");
-                        println!("Got command: {:?}", data_type);
                         handle_cmd(&mut parser, data_type, stream);
                     }
 
