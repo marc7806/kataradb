@@ -60,7 +60,7 @@ impl IOMultiplexer for DarwinIOMultiplexer {
                 let event = self.kq_event_buf.get_unchecked(i as usize);
                 let converted_event = Event::from_kevent(event);
 
-                if self.kdb_events.len() < event_count as usize {
+                if self.kdb_events.len() <= i as usize {
                     self.kdb_events.push(converted_event);
                 } else {
                     self.kdb_events[i as usize] = converted_event;
