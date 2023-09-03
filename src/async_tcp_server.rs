@@ -10,7 +10,6 @@ use crate::io_multiplexer::io_multiplexer::{Event, IOMultiplexer};
 
 const PORT: i16 = 9977;
 const ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
-// IPv4 addresses are 32bit sized
 const MAX_CLIENT_CONNECTIONS: usize = 1024;
 
 pub fn setup_server() {

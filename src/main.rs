@@ -1,5 +1,5 @@
 use std::io::{BufRead, Read, Write};
-use std::net::{IpAddr, Ipv4Addr, TcpStream};
+use std::net::TcpStream;
 
 use crate::resp::{DataType, RESPParser};
 use crate::resp::DataType::{BulkString, SimpleString};
@@ -8,10 +8,7 @@ pub mod resp;
 pub mod io_multiplexer;
 pub mod async_tcp_server;
 
-// Implement I/O Multiplexing, single-threaded event-loop
-const PORT: i16 = 9977;
-const ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)); // IPv4 addresses are 32bit sized
-
+// todo: add command handling for async server
 fn main() {
     println!("Starting kataradb");
     async_tcp_server::setup_server();
