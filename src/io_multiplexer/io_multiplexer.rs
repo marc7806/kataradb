@@ -35,7 +35,7 @@ impl Event {
     }
 
     pub fn from_kevent(event: &libc::kevent) -> Self {
-        // use bitwise and to check if the connection got closed
+        // use bitwise-and to check if the connection got closed
         let connection_closed = event.flags & libc::EV_EOF != 0;
 
         Event {
