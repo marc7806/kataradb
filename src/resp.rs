@@ -32,6 +32,8 @@ enum TypeSymbol {
 
 #[derive(Debug)]
 #[derive(PartialEq)]
+#[derive(Eq)]
+#[derive(Hash)]
 pub enum DataType {
     SimpleString(String),
     Integer(i64),

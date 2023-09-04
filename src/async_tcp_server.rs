@@ -4,10 +4,11 @@ use std::os::fd::{AsRawFd, RawFd};
 
 use libc::timespec;
 
-use crate::cmd::handle_cmd;
+use crate::cmd::CommandHandler;
 use crate::io_multiplexer::darwin_io_multiplexer::DarwinIOMultiplexer;
 use crate::io_multiplexer::io_multiplexer::{Event, IOMultiplexer};
 use crate::resp::RESPParser;
+use crate::store::Store;
 
 const PORT: i16 = 9977;
 const ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
@@ -15,10 +16,11 @@ const MAX_CLIENT_CONNECTIONS: usize = 1024;
 
 pub fn setup_server() {
     let (listener, listener_fd) = setup_tcp_listener();
-    start_event_loop(listener, listener_fd);
+    let store = Store::new();
+    start_event_loop(listener, listener_fd, store);
 }
 
-fn start_event_loop(listener: TcpListener, listener_fd: RawFd) {
+fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: Store) {
     // listen to incoming connections
     let io_multiplex = DarwinIOMultiplexer::new(MAX_CLIENT_CONNECTIONS);
 
@@ -31,6 +33,8 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd) {
 
     // if the client connection goes out of scope, the connection will be closed. Because of this we need to store the connections
     let mut client_connections = HashMap::new();
+
+    let mut command_handler = CommandHandler::new();
 
     // event loop
     loop {
@@ -62,7 +66,7 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd) {
 
                         let mut parser = RESPParser::new();
                         let data_type = parser.decode_next(stream).expect("Can not decode data type");
-                        handle_cmd(&mut parser, data_type, stream);
+                        command_handler.handle(&mut parser, stream, data_type);
                     }
 
                 }
