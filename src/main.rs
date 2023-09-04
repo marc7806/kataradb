@@ -4,6 +4,7 @@ mod resp;
 mod io_multiplexer;
 mod async_tcp_server;
 mod cmd;
+mod store;
 
 fn main() {
     println!("Starting kataradb");
