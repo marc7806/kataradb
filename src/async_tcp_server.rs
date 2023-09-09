@@ -4,7 +4,7 @@ use std::os::fd::{AsRawFd, RawFd};
 
 use libc::timespec;
 
-use crate::cmd::CommandHandler;
+use crate::cmd::handler::CommandHandler;
 use crate::io_multiplexer::darwin_io_multiplexer::DarwinIOMultiplexer;
 use crate::io_multiplexer::io_multiplexer::{Event, IOMultiplexer};
 use crate::store::Store;

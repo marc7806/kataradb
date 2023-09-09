@@ -34,6 +34,7 @@ enum TypeSymbol {
 #[derive(PartialEq)]
 #[derive(Eq)]
 #[derive(Hash)]
+#[derive(Clone)]
 pub enum DataType {
     SimpleString(String),
     Integer(i64),
