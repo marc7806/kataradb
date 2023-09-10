@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::net::TcpStream;
 
+use crate::cmd::cmd_del::DelCommand;
 use crate::cmd::cmd_get::GetCommand;
 use crate::cmd::cmd_ping::PingCommand;
 use crate::cmd::cmd_set::SetCommand;
@@ -27,6 +28,7 @@ impl CommandHandler {
         commands.insert(BulkString(String::from("SET")), Box::new(SetCommand));
         commands.insert(BulkString(String::from("GET")), Box::new(GetCommand));
         commands.insert(BulkString(String::from("TTL")), Box::new(TTLCommand));
+        commands.insert(BulkString(String::from("DEL")), Box::new(DelCommand));
 
         CommandHandler {
             commands,
