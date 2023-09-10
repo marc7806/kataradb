@@ -4,6 +4,7 @@ use std::os::fd::{AsRawFd, RawFd};
 
 use libc::timespec;
 
+use crate::active_expiration::ActiveExpirationManager;
 use crate::cmd::handler::CommandHandler;
 use crate::io_multiplexer::darwin_io_multiplexer::DarwinIOMultiplexer;
 use crate::io_multiplexer::io_multiplexer::{Event, IOMultiplexer};
@@ -28,15 +29,19 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
 
     // register tcp server socket - needed in order to listen for new client connections
     let event = Event::new(listener_fd, libc::EVFILT_READ);
-    io_multiplexer.register(event);
+    io_multiplexer.register(event).expect("Can not register TCP server socket");
 
     // if the client connection goes out of scope, the connection will be closed. Because of this we need to store the connections
     let mut client_connections = HashMap::new();
 
     let mut command_handler = CommandHandler::new();
 
+    let mut active_expiration_manager = ActiveExpirationManager::new(3000);
+
     // event loop
     loop {
+        active_expiration_manager.run_loop(store);
+
         let events = io_multiplexer.poll(timespec { tv_sec: 0, tv_nsec: 0 });
 
         match events {
@@ -50,9 +55,15 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
 
                         let stream_fd = stream.as_raw_fd();
                         let event = Event::new(stream_fd, libc::EVFILT_READ);
-                        io_multiplexer.register(event);
-
-                        client_connections.insert(stream_fd, stream);
+                        match io_multiplexer.register(event) {
+                            Ok(_) => {
+                                client_connections.insert(stream_fd, stream);
+                            }
+                            Err(e) => {
+                                println!("{}", e);
+                                continue;
+                            }
+                        }
                     } else {
                         let stream = client_connections.get_mut(&event.fd).expect("Can not get stream");
                         if event.connection_closed {
@@ -67,7 +78,7 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
                 }
             }
             Err(e) => {
-                panic!("Can not poll for events: {}", e);
+                println!("{}", e);
             }
         }
     }

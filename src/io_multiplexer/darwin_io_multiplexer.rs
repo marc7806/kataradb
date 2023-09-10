@@ -36,14 +36,14 @@ impl IOMultiplexer for DarwinIOMultiplexer {
     /// Register a file descriptor with the kernel queue to receive events of a certain type (filter) and with certain flags (flags)
     /// ident: file descriptor
     /// flags: EV_ADD, EV_DELETE, EV_ENABLE, EV_DISABLE, EV_CLEAR, EV_RECEIPT, EV_ONESHOT, EV_DISPATCH, EV_UDATA_SPECIFIC
-    fn register(&mut self, event: Event) -> i32 {
+    fn register(&mut self, event: Event) -> Result<i32, String> {
         let add_event_result = unsafe { libc::kevent(self.kq, &mut event.to_kevent(libc::EV_ADD), 1, std::ptr::null_mut(), 0, std::ptr::null()) };
 
         if add_event_result == -1 {
-            panic!("Can not register event for kqueue");
+            return Err(String::from("Can not register event"));
         }
 
-        return add_event_result;
+        return Ok(add_event_result)
     }
 
     /// Poll for events on the kernel queue
@@ -52,7 +52,7 @@ impl IOMultiplexer for DarwinIOMultiplexer {
         let event_count = unsafe { libc::kevent(self.kq, std::ptr::null_mut(), 0, self.kq_event_buf.as_mut_ptr(), self.kq_event_buf.capacity() as i32, &timeout) };
 
         if event_count == -1 {
-            panic!("Can not poll kqueue");
+            return Err(String::from("Can not poll kqueue"));
         }
 
         unsafe {

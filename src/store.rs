@@ -66,6 +66,10 @@ impl Store {
             },
         }
     }
+
+    pub fn get_data(&self) -> &HashMap<String, StoreObject> {
+        &self.data
+    }
 }
 
 #[test]

@@ -2,7 +2,7 @@ use libc::{timespec, uintptr_t};
 
 pub trait IOMultiplexer {
     fn new(max_clients: usize) -> Self;
-    fn register(&mut self, event: Event) -> i32;
+    fn register(&mut self, event: Event) -> Result<i32, String>;
     fn poll(&mut self, timeout: timespec) -> Result<Vec<Event>, String>;
     fn close(&self);
 }
