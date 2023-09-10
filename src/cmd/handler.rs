@@ -4,6 +4,7 @@ use std::net::TcpStream;
 use crate::cmd::cmd_get::GetCommand;
 use crate::cmd::cmd_ping::PingCommand;
 use crate::cmd::cmd_set::SetCommand;
+use crate::cmd::cmd_ttl::TTLCommand;
 use crate::resp::{DataType, RESPParser};
 use crate::resp::DataType::{BulkString, SimpleString};
 use crate::store::Store;
@@ -25,6 +26,7 @@ impl CommandHandler {
         commands.insert(BulkString(String::from("PING")), Box::new(PingCommand));
         commands.insert(BulkString(String::from("SET")), Box::new(SetCommand));
         commands.insert(BulkString(String::from("GET")), Box::new(GetCommand));
+        commands.insert(BulkString(String::from("TTL")), Box::new(TTLCommand));
 
         CommandHandler {
             commands,

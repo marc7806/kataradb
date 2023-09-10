@@ -5,6 +5,7 @@ use crate::resp::{DataType, RESPParser};
 use crate::resp::DataType::SimpleString;
 use crate::store::Store;
 
+/// see https://redis.io/commands/ping/
 pub struct PingCommand;
 
 impl Command for PingCommand {

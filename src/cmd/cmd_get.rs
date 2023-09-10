@@ -5,6 +5,7 @@ use crate::resp::{DataType, RESPParser};
 use crate::resp::DataType::{BulkString, Error};
 use crate::store::Store;
 
+/// see https://redis.io/commands/get/
 pub struct GetCommand;
 
 impl Command for GetCommand {
@@ -13,13 +14,13 @@ impl Command for GetCommand {
 
         match key {
             BulkString(key_str) => {
-                match store.get::<DataType>(key_str.as_str()) {
-                    Ok(value) => {
-                        parser.write_to_stream(stream, value.clone());
+                match store.get(&key_str) {
+                    Some(store_object) => {
+                        parser.write_to_stream(stream, store_object.data.clone());
                         parser.flush_stream(stream);
                     }
-                    Err(_) => {
-                        parser.write_to_stream(stream, BulkString(String::from("")));
+                    None => {
+                        parser.write_to_stream(stream, Error(String::from("Key not found")));
                         parser.flush_stream(stream);
                     }
                 }
