@@ -11,7 +11,7 @@ use crate::resp::DataType::{BulkString, SimpleString};
 use crate::store::Store;
 
 pub trait Command {
-    fn execute(&self, data: &mut Vec<DataType>, parser: &mut RESPParser, stream: &mut TcpStream, store: &mut Store);
+    fn execute(&self, args: &mut Vec<String>, parser: &mut RESPParser, stream: &mut TcpStream, store: &mut Store);
 }
 
 pub struct CommandHandler {
@@ -45,7 +45,18 @@ impl CommandHandler {
                 let cmd = &data[0];
 
                 match self.commands.get(cmd) {
-                    Some(command) => command.execute(&mut data, &mut self.parser, stream, store),
+                    Some(command) => {
+                        let mut args = self.extract_args(&data);
+                        match args {
+                            Ok(mut result) => {
+                                command.execute(&mut result, &mut self.parser, stream, store);
+                            }
+                            Err(err) => {
+                                self.parser.write_to_stream(stream, DataType::Error(err));
+                                self.parser.flush_stream(stream);
+                            }
+                        }
+                    }
                     None => {
                         self.parser.write_to_stream(stream, SimpleString(String::from("OK")));
                         self.parser.flush_stream(stream);
@@ -56,5 +67,20 @@ impl CommandHandler {
                 println!("Got not supported command");
             }
         }
+    }
+
+    fn extract_args(&self, data: &Vec<DataType>) -> Result<Vec<String>, String> {
+        let mut result = Vec::new();
+        for item in data {
+            match item {
+                BulkString(value) => {
+                    result.push(value.clone());
+                }
+                _ => {
+                    return Err(String::from("Invalid data type"));
+                }
+            }
+        }
+        Ok(result)
     }
 }

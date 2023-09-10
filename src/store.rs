@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
-use crate::resp::DataType;
-
 #[derive(Debug, PartialEq)]
 pub struct StoreObject {
-    pub data: DataType,
+    pub data: String,
     // stores the expiration in unix epoch milliseconds
     pub expires_at: i64,
 }
@@ -21,7 +19,7 @@ impl Store {
         }
     }
 
-    pub fn put(&mut self, key: &str, value: DataType, expiration_duration_ms: i64) {
+    pub fn put(&mut self, key: &str, value: String, expiration_duration_ms: i64) {
         let expires_at =
             if expiration_duration_ms > 0 {
                 let now = chrono::Utc::now();
@@ -55,22 +53,22 @@ fn test_store_put_get() {
     let mut store = Store::new();
 
     // when
-    store.put("key", DataType::BulkString(String::from("value")), -1);
-    store.put("key2", DataType::BulkString(String::from("value2")), 1000);
-    store.put("key3", DataType::BulkString(String::from("value3")), 2000);
-    store.put("key4", DataType::BulkString(String::from("value4")), 3000);
+    store.put("key", String::from("value"), -1);
+    store.put("key2", String::from("value2"), 1000);
+    store.put("key3", String::from("value3"), 2000);
+    store.put("key4", String::from("value4"), 3000);
 
     // then
-    assert_eq!(store.get("key").unwrap().data, DataType::BulkString(String::from("value")));
+    assert_eq!(store.get("key").unwrap().data, String::from("value"));
     assert_eq!(store.get("key").unwrap().expires_at, -1);
 
-    assert_eq!(store.get("key2").unwrap().data, DataType::BulkString(String::from("value2")));
+    assert_eq!(store.get("key2").unwrap().data, String::from("value2"));
     assert_eq!(store.get("key2").unwrap().expires_at, chrono::Utc::now().timestamp_millis() + 1000);
 
-    assert_eq!(store.get("key3").unwrap().data, DataType::BulkString(String::from("value3")));
+    assert_eq!(store.get("key3").unwrap().data, String::from("value3"));
     assert_eq!(store.get("key3").unwrap().expires_at, chrono::Utc::now().timestamp_millis() + 2000);
 
-    assert_eq!(store.get("key4").unwrap().data, DataType::BulkString(String::from("value4")));
+    assert_eq!(store.get("key4").unwrap().data, String::from("value4"));
     assert_eq!(store.get("key4").unwrap().expires_at, chrono::Utc::now().timestamp_millis() + 3000);
 }
 
@@ -78,9 +76,9 @@ fn test_store_put_get() {
 fn test_store_remove() {
     // given
     let mut store = Store::new();
-    store.put("key", DataType::BulkString(String::from("value")), -1);
-    store.put("key2", DataType::BulkString(String::from("value2")), 1000);
-    store.put("key3", DataType::BulkString(String::from("value3")), 2000);
+    store.put("key", String::from("value"), -1);
+    store.put("key2", String::from("value2"), 1000);
+    store.put("key3", String::from("value3"), 2000);
 
     // then
     let removed_key = store.remove("key");
@@ -90,15 +88,15 @@ fn test_store_remove() {
 
     // when
     assert_eq!(removed_key, Some(StoreObject {
-        data: DataType::BulkString(String::from("value")),
+        data: String::from("value"),
         expires_at: -1,
     }));
     assert_eq!(removed_key_2, Some(StoreObject {
-        data: DataType::BulkString(String::from("value2")),
+        data: String::from("value2"),
         expires_at: chrono::Utc::now().timestamp_millis() + 1000,
     }));
     assert_eq!(removed_key_3, Some(StoreObject {
-        data: DataType::BulkString(String::from("value3")),
+        data: String::from("value3"),
         expires_at: chrono::Utc::now().timestamp_millis() + 2000,
     }));
     assert_eq!(not_existing_key, None);
