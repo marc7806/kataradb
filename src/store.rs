@@ -1,6 +1,7 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct StoreObject {
     pub data: String,
     // stores the expiration in unix epoch milliseconds
@@ -14,7 +15,6 @@ impl StoreObject {
 }
 
 pub struct Store {
-    // box because we want to store data of any type on heap
     data: HashMap<String, StoreObject>,
 }
 
@@ -48,8 +48,23 @@ impl Store {
         return self.data.remove(key);
     }
 
-    pub fn get(&self, key: &str) -> Option<&StoreObject> {
-        self.data.get(key)
+    pub fn get(&mut self, key: &str) -> Option<StoreObject> {
+        match self.data.entry(key.to_string()) {
+            Entry::Occupied(entry) => {
+                // Check whether store_object is expired
+                let store_object = entry.get();
+                let now = chrono::Utc::now().timestamp_millis();
+                if store_object.expires_at != -1 && store_object.expires_at < now {
+                    entry.remove();
+                    return None
+                }
+
+                Some(store_object.clone())
+            },
+            Entry::Vacant(_) => {
+                return None;
+            },
+        }
     }
 }
 
