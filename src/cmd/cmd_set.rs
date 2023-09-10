@@ -1,8 +1,8 @@
 use std::net::TcpStream;
 
 use crate::cmd::handler::Command;
-use crate::resp::RESPParser;
 use crate::resp::DataType::{Error, SimpleString};
+use crate::resp::RESPParser;
 use crate::store::Store;
 
 /// see https://redis.io/commands/set/
@@ -10,17 +10,17 @@ pub struct SetCommand;
 
 impl Command for SetCommand {
     fn execute(&self, args: &mut Vec<String>, parser: &mut RESPParser, stream: &mut TcpStream, store: &mut Store) {
-        if args.len() < 3 {
+        if args.len() < 2 {
             parser.write_to_stream(stream, Error(String::from("ERR wrong number of arguments for 'set' command")));
             parser.flush_stream(stream);
             return;
         }
 
-        let key = args[1].clone();
-        let value = args[2].clone();
+        let key = args[0].clone();
+        let value = args[1].clone();
 
         let mut expiration_duration_ms = -1;
-        let mut i = 3;
+        let mut i = 2;
 
         while i < args.len() {
             let arg = args[i].clone();

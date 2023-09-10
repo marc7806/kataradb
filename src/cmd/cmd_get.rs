@@ -1,8 +1,8 @@
 use std::net::TcpStream;
 
 use crate::cmd::handler::Command;
-use crate::resp::RESPParser;
 use crate::resp::DataType::{BulkString, Error};
+use crate::resp::RESPParser;
 use crate::store::Store;
 
 /// see https://redis.io/commands/get/
@@ -10,7 +10,7 @@ pub struct GetCommand;
 
 impl Command for GetCommand {
     fn execute(&self, args: &mut Vec<String>, parser: &mut RESPParser, stream: &mut TcpStream, store: &mut Store) {
-        let key = args[1].clone();
+        let key = args[0].clone();
 
         match store.get(key.as_str()) {
             Some(store_object) => {

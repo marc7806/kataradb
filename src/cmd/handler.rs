@@ -73,16 +73,19 @@ impl CommandHandler {
 
     fn extract_args(&self, data: &Vec<DataType>) -> Result<Vec<String>, String> {
         let mut result = Vec::new();
-        for item in data {
-            match item {
+        
+        // skip first element, because it is the command
+        for i in 1..data.len() {
+            match &data[i] {
                 BulkString(value) => {
                     result.push(value.clone());
                 }
                 _ => {
-                    return Err(String::from("Invalid data type"));
+                    return Err(String::from("Wrong argument type"));
                 }
             }
         }
+
         Ok(result)
     }
 }

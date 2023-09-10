@@ -9,14 +9,14 @@ pub struct ExpireCommand;
 
 impl Command for ExpireCommand {
     fn execute(&self, args: &mut Vec<String>, parser: &mut RESPParser, stream: &mut TcpStream, store: &mut Store) {
-        if args.len() < 3 {
+        if args.len() < 2 {
             parser.write_to_stream(stream, DataType::Error(String::from("Wrong number of arguments")));
             parser.flush_stream(stream);
             return;
         }
 
-        let key = &args[1];
-        let seconds = &args[2];
+        let key = &args[0];
+        let seconds = &args[1];
         let seconds_int = seconds.parse::<i64>();
 
         let mut store_object = store.get(key);
