@@ -5,6 +5,7 @@ mod io_multiplexer;
 mod async_tcp_server;
 mod cmd;
 mod store;
+mod active_expiration;
 
 fn main() {
     println!("Starting kataradb");
