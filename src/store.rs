@@ -7,6 +7,12 @@ pub struct StoreObject {
     pub expires_at: i64,
 }
 
+impl StoreObject {
+    pub fn get_data(&self) -> String {
+        self.data.clone()
+    }
+}
+
 pub struct Store {
     // box because we want to store data of any type on heap
     data: HashMap<String, StoreObject>,
