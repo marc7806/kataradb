@@ -1,6 +1,9 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
+use crate::eviction::eviction::EvictionManager;
+use crate::eviction::eviction::EvictionPolicyType::SIMPLE;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct StoreObject {
     pub data: String,
@@ -16,16 +19,26 @@ impl StoreObject {
 
 pub struct Store {
     data: HashMap<String, StoreObject>,
+    eviction_manager: Option<EvictionManager>,
 }
 
 impl Store {
     pub fn new() -> Self {
         Store {
             data: HashMap::new(),
+            eviction_manager: Some(EvictionManager::new(5, SIMPLE.get_eviction_policy())),
         }
     }
 
     pub fn put(&mut self, key: &str, value: String, expiration_duration_ms: i64) {
+        // check for eviction
+        let mut eviction_manager = self.eviction_manager.take().expect("EvictionManager is None");
+        if eviction_manager.ready_for_evict(self) {
+            eviction_manager.evict(self);
+        }
+        self.eviction_manager = Some(eviction_manager);
+        //
+
         let expires_at =
             if expiration_duration_ms > 0 {
                 let now = chrono::Utc::now();
@@ -56,14 +69,14 @@ impl Store {
                 let now = chrono::Utc::now().timestamp_millis();
                 if store_object.expires_at != -1 && store_object.expires_at < now {
                     entry.remove();
-                    return None
+                    return None;
                 }
 
                 Some(store_object.clone())
-            },
+            }
             Entry::Vacant(_) => {
                 return None;
-            },
+            }
         }
     }
 
