@@ -39,36 +39,39 @@ impl CommandHandler {
     }
 
     pub fn handle(&mut self, stream: &mut TcpStream, store: &mut Store) {
-        let request = self.parser.decode_next(stream).expect("Can not decode data type");
-        println!("Received command: {:?}", request);
+        let cmd_request = self.parser.decode_next(stream).expect("Can not decode data type");
+        println!("Received command: {:?}", cmd_request);
 
-        match request {
+        let result = self.execute_cmd(store, cmd_request);
+        self.parser.write_to_stream(stream, result);
+        self.parser.flush_stream(stream);
+    }
+
+    fn execute_cmd(&mut self, store: &mut Store, request: DataType) -> DataType {
+        return match request {
             DataType::Array(mut data) => {
-                let cmd = &data[0];
+                let requested_cmd = &data[0];
 
-                match self.commands.get(cmd) {
+                match self.commands.get(requested_cmd) {
                     Some(command) => {
-                        let mut args = self.extract_args(&data);
-                        match args {
-                            Ok(mut result) => {
-                                let command_result = command.execute(&mut result, store);
-                                self.parser.write_to_stream(stream, command_result);
-                                self.parser.flush_stream(stream);
+                        let mut result_args = self.extract_args(&data);
+                        match result_args {
+                            Ok(mut args) => {
+                                command.execute(&mut args, store)
                             }
                             Err(err) => {
-                                self.parser.write_to_stream(stream, DataType::Error(err));
-                                self.parser.flush_stream(stream);
+                                DataType::Error(err)
                             }
                         }
                     }
                     None => {
-                        self.parser.write_to_stream(stream, SimpleString(String::from("OK")));
-                        self.parser.flush_stream(stream);
+                        SimpleString(String::from("OK"))
                     }
                 }
             }
             _ => {
                 println!("Got not supported command");
+                DataType::Error(String::from("Not supported command"))
             }
         }
     }
