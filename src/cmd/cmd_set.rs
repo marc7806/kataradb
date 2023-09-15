@@ -1,19 +1,15 @@
-use std::net::TcpStream;
-
 use crate::cmd::handler::Command;
+use crate::resp::DataType;
 use crate::resp::DataType::{Error, SimpleString};
-use crate::resp::RESPParser;
 use crate::store::Store;
 
 /// see https://redis.io/commands/set/
 pub struct SetCommand;
 
 impl Command for SetCommand {
-    fn execute(&self, args: &mut Vec<String>, parser: &mut RESPParser, stream: &mut TcpStream, store: &mut Store) {
+    fn execute(&self, args: &mut Vec<String>, store: &mut Store) -> DataType {
         if args.len() < 2 {
-            parser.write_to_stream(stream, Error(String::from("ERR wrong number of arguments for 'set' command")));
-            parser.flush_stream(stream);
-            return;
+            return Error(String::from("ERR wrong number of arguments for 'set' command"));
         }
 
         let key = args[0].clone();
@@ -27,9 +23,7 @@ impl Command for SetCommand {
 
             if arg == "EX" {
                 if i + 1 >= args.len() {
-                    parser.write_to_stream(stream, Error(String::from("ERR syntax error")));
-                    parser.flush_stream(stream);
-                    return;
+                    return Error(String::from("ERR syntax error"));
                 }
 
                 let duration = args[i + 1].clone();
@@ -39,21 +33,15 @@ impl Command for SetCommand {
                         i += 2;
                     }
                     Err(_) => {
-                        parser.write_to_stream(stream, Error(String::from("ERR value is not an integer or out of range")));
-                        parser.flush_stream(stream);
-                        return;
+                        return Error(String::from("ERR value is not an integer or out of range"));
                     }
                 }
             } else {
-                parser.write_to_stream(stream, Error(String::from("ERR syntax error")));
-                parser.flush_stream(stream);
-                return;
+                return Error(String::from("ERR syntax error"));
             }
         }
 
         store.put(&key, value, expiration_duration_ms);
-
-        parser.write_to_stream(stream, SimpleString(String::from("OK")));
-        parser.flush_stream(stream);
+        return SimpleString(String::from("OK"));
     }
 }

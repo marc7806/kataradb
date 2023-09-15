@@ -12,7 +12,7 @@ use crate::resp::DataType::{BulkString, SimpleString};
 use crate::store::Store;
 
 pub trait Command {
-    fn execute(&self, args: &mut Vec<String>, parser: &mut RESPParser, stream: &mut TcpStream, store: &mut Store);
+    fn execute(&self, args: &mut Vec<String>, store: &mut Store) -> DataType;
 }
 
 pub struct CommandHandler {
@@ -51,7 +51,9 @@ impl CommandHandler {
                         let mut args = self.extract_args(&data);
                         match args {
                             Ok(mut result) => {
-                                command.execute(&mut result, &mut self.parser, stream, store);
+                                let command_result = command.execute(&mut result, store);
+                                self.parser.write_to_stream(stream, command_result);
+                                self.parser.flush_stream(stream);
                             }
                             Err(err) => {
                                 self.parser.write_to_stream(stream, DataType::Error(err));
@@ -73,7 +75,7 @@ impl CommandHandler {
 
     fn extract_args(&self, data: &Vec<DataType>) -> Result<Vec<String>, String> {
         let mut result = Vec::new();
-        
+
         // skip first element, because it is the command
         for i in 1..data.len() {
             match &data[i] {
