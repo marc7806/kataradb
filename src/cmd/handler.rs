@@ -38,12 +38,18 @@ impl CommandHandler {
         }
     }
 
-    pub fn handle(&mut self, stream: &mut TcpStream, store: &mut Store) {
-        let cmd_request = self.parser.decode_next(stream).expect("Can not decode data type");
-        println!("Received command: {:?}", cmd_request);
+    /// Handle commands in a pipeline
+    pub fn handle_bulk(&mut self, stream: &mut TcpStream, store: &mut Store) {
+        let mut cmd_requests = self.parser.decode_next_bulk(stream).expect("Can not decode data type");
+        println!("Received commands: {:?}", cmd_requests);
 
-        let result = self.execute_cmd(store, cmd_request);
-        self.parser.write_to_stream(stream, result);
+        let mut results = Vec::new();
+        for cmd_request in cmd_requests.drain(..) {
+            let result = self.execute_cmd(store, cmd_request);
+            results.push(result);
+        }
+
+        self.parser.write_to_stream(stream, results);
         self.parser.flush_stream(stream);
     }
 

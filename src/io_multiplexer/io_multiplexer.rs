@@ -16,11 +16,13 @@ pub struct Event {
     pub filter: i16,
     // flag that indicates whether a connection got closed by the client
     pub connection_closed: bool,
+    // flag that indicates whether the event has data to read
+    pub has_data: bool,
 }
 
 impl Event {
     pub fn new(fd: i32, filter: i16) -> Self {
-        Event { fd, filter, connection_closed: false }
+        Event { fd, filter, connection_closed: false, has_data: false }
     }
 
     pub fn to_kevent(&self, flags: u16) -> libc::kevent {
@@ -37,11 +39,13 @@ impl Event {
     pub fn from_kevent(event: &libc::kevent) -> Self {
         // use bitwise-and to check if the connection got closed
         let connection_closed = event.flags & libc::EV_EOF != 0;
+        let has_data = event.data > 0;
 
         Event {
             fd: event.ident as i32,
             filter: event.filter,
-            connection_closed
+            connection_closed,
+            has_data,
         }
     }
 }

@@ -52,10 +52,22 @@ impl RESPParser {
         };
     }
 
-    fn read_line(&mut self, stream: &mut TcpStream) -> &Vec<u8> {
+    fn read_line(&mut self, stream: &mut TcpStream) -> Option<&Vec<u8>> {
         if self.line_buffer.len() > 0 {
             // clear buffer if it is not empty
             self.line_buffer.clear();
+        }
+
+        // check whether there are bytes available to read
+        let mut buffer = [0; 1];
+        match stream.peek(&mut buffer) {
+            Ok(_) => {
+                // continue
+            }
+            Err(_) => {
+                // no bytes available to read
+                return None;
+            }
         }
 
         // Parse sequence of bytes until next CRLF
@@ -72,7 +84,12 @@ impl RESPParser {
             self.line_buffer.push(byte);
         }
 
-        return &self.line_buffer;
+        // if buffer is empty then return none
+        if self.line_buffer.len() == 0 {
+            return None;
+        }
+
+        return Some(&self.line_buffer);
     }
 
     pub fn encode(&mut self, data_type: DataType) -> String {
@@ -99,9 +116,35 @@ impl RESPParser {
         };
     }
 
+    /// Parse multiple commands from stream until no more bytes are available to read
+    /// Method is used for pipelining
+    pub fn decode_next_bulk(&mut self, stream: &mut TcpStream) -> Result<Vec<DataType>, String> {
+        let mut bulk = Vec::new();
+
+        loop {
+            let data_type = self.decode_next(stream);
+            match data_type {
+                Ok(data_type) => {
+                    bulk.push(data_type);
+                }
+                Err(_) => {
+                    // no more bytes to read
+                    break;
+                }
+            }
+        }
+
+        return Ok(bulk);
+    }
+
     /// Parses next sequence of bytes from the stream and decodes it to a [`DataType`]
     pub fn decode_next(&mut self, stream: &mut TcpStream) -> Result<DataType, String> {
-        let line = self.read_line(stream);
+        let line_option = self.read_line(stream);
+        if line_option.is_none() {
+            return Err(String::from("No more bytes to read"));
+        }
+
+        let line = line_option.unwrap();
         let type_symbol = line[0];
 
         // parse bytes to data type starting from second byte (first byte is a type symbol)
@@ -171,8 +214,11 @@ impl RESPParser {
         return Self::read_string(line.to_vec()).parse::<i64>().expect("Can not parse string to integer");
     }
 
-    pub fn write_to_stream(&mut self, stream: &mut TcpStream, data: DataType) {
-        let encoded_data = self.encode(data);
+    pub fn write_to_stream(&mut self, stream: &mut TcpStream, data: Vec<DataType>) {
+        let mut encoded_data = String::new();
+        for data_type in data {
+            encoded_data.push_str(&self.encode(data_type));
+        }
         stream.write_all(encoded_data.as_bytes()).expect("Can not write to stream");
     }
 
@@ -358,6 +404,37 @@ mod tests {
 
         assert_eq!(wrong_type_expected, wrong_type_actual);
         assert_eq!(unknown_command_expected, unknown_command_actual);
+    }
+
+    #[test]
+    fn test_decode_next_bulk() {
+        // given
+        let test_messages = vec![
+            "*1\r\n$4\r\nPING\r\n*3\r\n$3\r\nSET\r\n$1\r\nk\r\n$1\r\nv\r\n*2\r\n$3\r\nGET\r\n$1\r\nk\r\n",
+        ];
+        let mut stream = get_test_stream(test_messages);
+        let mut parser = RESPParser::new();
+
+        // when
+        let bulk = parser.decode_next_bulk(&mut stream).expect("Can not parse next");
+
+        // then
+        let expected_bulk = vec![
+            DataType::Array(vec![
+                DataType::BulkString(String::from("PING")),
+            ]),
+            DataType::Array(vec![
+                DataType::BulkString(String::from("SET")),
+                DataType::BulkString(String::from("k")),
+                DataType::BulkString(String::from("v")),
+            ]),
+            DataType::Array(vec![
+                DataType::BulkString(String::from("GET")),
+                DataType::BulkString(String::from("k")),
+            ]),
+        ];
+        
+        assert_eq!(expected_bulk, bulk);
     }
 
     fn get_test_stream(messages: Vec<&str>) -> TcpStream {

@@ -66,13 +66,16 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
                         }
                     } else {
                         let stream = client_connections.get_mut(&event.fd).expect("Can not get stream");
+                        
+                        if event.has_data {
+                            command_handler.handle_bulk(stream, store);
+                        }
+
                         if event.connection_closed {
                             println!("Connection got closed by client");
                             client_connections.remove(&event.fd);
                             continue;
                         }
-
-                        command_handler.handle(stream, store);
                     }
 
                 }
