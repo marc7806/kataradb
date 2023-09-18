@@ -6,6 +6,7 @@ use crate::eviction::eviction::EvictionPolicyType::SIMPLE;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct StoreObject {
+    // todo: proper object handling
     pub data: String,
     // stores the expiration in unix epoch milliseconds
     pub expires_at: i64,

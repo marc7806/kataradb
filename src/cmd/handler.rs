@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::net::TcpStream;
 
+use crate::cmd::cmd_bgrewriteaof::BgRewriteAofCommand;
 use crate::cmd::cmd_del::DelCommand;
 use crate::cmd::cmd_expire::ExpireCommand;
 use crate::cmd::cmd_get::GetCommand;
@@ -31,6 +32,7 @@ impl CommandHandler {
         commands.insert(BulkString(String::from("TTL")), Box::new(TTLCommand));
         commands.insert(BulkString(String::from("DEL")), Box::new(DelCommand));
         commands.insert(BulkString(String::from("EXPIRE")), Box::new(ExpireCommand));
+        commands.insert(BulkString(String::from("BGREWRITEAOF")), Box::new(BgRewriteAofCommand));
 
         CommandHandler {
             commands,
