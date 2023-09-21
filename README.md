@@ -1,8 +1,11 @@
 # KataraDB
+KataraDB is a simple **in-memory key-value database** written in Rust ⚡
 
-### Resources
-- [Rust Ownership and Heap&Stack Explanation](https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html)
+It supports the **Redis protocol** and can be used as a drop-in replacement for Redis.
 
-### Todos
-- [ ] Implement EPOLL support
-- [ ] Implement API
+> The database is developed for learning purposes and should not be used in production.
+
+## How to start
+```bash
+cargo run
+```
