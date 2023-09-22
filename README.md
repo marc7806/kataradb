@@ -9,3 +9,8 @@ It supports the **Redis protocol** and can be used as a drop-in replacement for 
 ```bash
 cargo run
 ```
+
+## Run tests
+```bash
+cargo test
+```
