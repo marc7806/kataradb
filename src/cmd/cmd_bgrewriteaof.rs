@@ -3,7 +3,7 @@ use std::io::Write;
 
 use crate::cmd::handler::Command;
 use crate::resp::{DataType, RESPParser};
-use crate::store::Store;
+use crate::store::{Store, store_object_to_datatype};
 
 /// see: https://redis.io/commands/bgrewriteaof
 pub struct BgRewriteAofCommand;
@@ -22,7 +22,7 @@ impl Command for BgRewriteAofCommand {
             let command = DataType::Array(vec![
                 DataType::BulkString(String::from("SET")),
                 DataType::BulkString(key.to_string()),
-                DataType::BulkString(value.get_data()),
+                store_object_to_datatype(value),
             ]);
             let encoded = parser.encode(command);
             aof_file.write_all(encoded.as_bytes()).expect("Can not write to AOF file");

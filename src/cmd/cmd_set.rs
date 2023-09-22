@@ -1,7 +1,8 @@
 use crate::cmd::handler::Command;
+use crate::object_type_encoding::{get_string_encoding, OBJ_TYPE_STRING};
 use crate::resp::DataType;
 use crate::resp::DataType::{Error, SimpleString};
-use crate::store::Store;
+use crate::store::{Store, ObjectValue};
 
 /// see https://redis.io/commands/set/
 pub struct SetCommand;
@@ -41,7 +42,8 @@ impl Command for SetCommand {
             }
         }
 
-        store.put(&key, value, expiration_duration_ms);
+        let string_encoding = get_string_encoding(&value);
+        store.put(&key, ObjectValue::String(value), expiration_duration_ms, OBJ_TYPE_STRING | string_encoding);
         return SimpleString(String::from("OK"));
     }
 }

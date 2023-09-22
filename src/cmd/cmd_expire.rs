@@ -15,7 +15,7 @@ impl Command for ExpireCommand {
         let seconds = &args[1];
         let seconds_int = seconds.parse::<i64>();
 
-        let mut store_object = store.get(key);
+        let store_object = store.get(key);
 
         return match store_object {
             None => {
@@ -27,7 +27,7 @@ impl Command for ExpireCommand {
                 }
 
                 let seconds_int = seconds_int.unwrap();
-                store.put(key, obj.get_data(), seconds_int * 1000);
+                store.put(key, obj.get_value_clone(), seconds_int * 1000, obj.type_encoding);
                 return DataType::Integer(1);
             }
         }
