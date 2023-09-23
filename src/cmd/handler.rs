@@ -24,7 +24,7 @@ pub struct CommandHandler {
 
 impl CommandHandler {
     pub fn new() -> Self {
-        let mut parser = RESPParser::new();
+        let parser = RESPParser::new();
 
         let mut commands: HashMap<DataType, Box<dyn Command>> = HashMap::new();
         commands.insert(BulkString(String::from("PING")), Box::new(PingCommand));
@@ -59,12 +59,12 @@ impl CommandHandler {
 
     fn execute_cmd(&mut self, store: &mut Store, request: DataType) -> DataType {
         return match request {
-            DataType::Array(mut data) => {
+            DataType::Array(data) => {
                 let requested_cmd = &data[0];
 
                 match self.commands.get(requested_cmd) {
                     Some(command) => {
-                        let mut result_args = self.extract_args(&data);
+                        let result_args = self.extract_args(&data);
                         match result_args {
                             Ok(mut args) => {
                                 command.execute(&mut args, store)

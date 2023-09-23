@@ -7,7 +7,7 @@ use crate::store::Store;
 pub struct PingCommand;
 
 impl Command for PingCommand {
-    fn execute(&self, args: &mut Vec<String>, store: &mut Store) -> DataType {
+    fn execute(&self, _: &mut Vec<String>, _: &mut Store) -> DataType {
         return SimpleString(String::from("PONG"));
     }
 }

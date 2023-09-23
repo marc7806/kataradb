@@ -32,7 +32,12 @@ impl EvictionManager {
 
     pub fn evict(&mut self, store: &mut Store) {
         println!("Evicting keys...");
-        self.eviction_policy.evict(store);
+        match self.eviction_policy.evict(store) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("Error while evicting keys: {}", err);
+            }
+        }
     }
 
     pub fn ready_for_evict(&self, store: &Store) -> bool {

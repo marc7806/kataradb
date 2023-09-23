@@ -19,16 +19,16 @@ impl Command for ExpireCommand {
 
         return match store_object {
             None => {
-                return DataType::Integer(0);
+                DataType::Integer(0)
             }
-            Some(mut obj) => {
+            Some(obj) => {
                 if seconds_int.is_err() {
                     return DataType::Integer(0);
                 }
 
                 let seconds_int = seconds_int.unwrap();
                 store.put(key, obj.get_value_clone(), seconds_int * 1000, obj.type_encoding);
-                return DataType::Integer(1);
+                DataType::Integer(1)
             }
         }
     }

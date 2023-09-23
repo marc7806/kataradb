@@ -1,7 +1,7 @@
 use crate::cmd::handler::Command;
 use crate::object_type_encoding::{OBJ_ENCODING_INT, OBJ_TYPE_STRING};
 use crate::resp::DataType;
-use crate::store::{ObjectValue, Store, StoreObject};
+use crate::store::{ObjectValue, Store};
 
 /// see https://redis.io/commands/incr/
 

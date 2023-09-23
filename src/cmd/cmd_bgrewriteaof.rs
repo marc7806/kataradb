@@ -12,7 +12,7 @@ const AOF_FILE_NAME: &str = "kataradb.aof";
 
 // todo: run aof rewrite in background process instead of doing it synchronously
 impl Command for BgRewriteAofCommand {
-    fn execute(&self, args: &mut Vec<String>, store: &mut Store) -> DataType {
+    fn execute(&self, _: &mut Vec<String>, store: &mut Store) -> DataType {
         println!("Rewriting AOF file...");
 
         let mut parser = RESPParser::new();

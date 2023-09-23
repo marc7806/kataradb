@@ -22,15 +22,6 @@ pub struct RESPParser {
 }
 
 #[derive(Debug)]
-enum TypeSymbol {
-    SimpleString,
-    Integer,
-    BulkString,
-    Array,
-    Error,
-}
-
-#[derive(Debug)]
 #[derive(PartialEq)]
 #[derive(Eq)]
 #[derive(Hash)]
@@ -433,7 +424,7 @@ mod tests {
                 DataType::BulkString(String::from("k")),
             ]),
         ];
-        
+
         assert_eq!(expected_bulk, bulk);
     }
 

@@ -1,6 +1,6 @@
 use crate::cmd::handler::Command;
 use crate::resp::DataType;
-use crate::resp::DataType::{BulkString, Error};
+use crate::resp::DataType::{Error};
 use crate::store::{Store, store_object_to_datatype};
 
 /// see https://redis.io/commands/get/
