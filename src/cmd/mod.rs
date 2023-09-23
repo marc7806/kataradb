@@ -7,3 +7,4 @@ mod cmd_ttl;
 mod cmd_del;
 mod cmd_expire;
 mod cmd_bgrewriteaof;
+mod cmd_incr;

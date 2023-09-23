@@ -5,6 +5,7 @@ use crate::cmd::cmd_bgrewriteaof::BgRewriteAofCommand;
 use crate::cmd::cmd_del::DelCommand;
 use crate::cmd::cmd_expire::ExpireCommand;
 use crate::cmd::cmd_get::GetCommand;
+use crate::cmd::cmd_incr::IncrCommand;
 use crate::cmd::cmd_ping::PingCommand;
 use crate::cmd::cmd_set::SetCommand;
 use crate::cmd::cmd_ttl::TTLCommand;
@@ -33,6 +34,7 @@ impl CommandHandler {
         commands.insert(BulkString(String::from("DEL")), Box::new(DelCommand));
         commands.insert(BulkString(String::from("EXPIRE")), Box::new(ExpireCommand));
         commands.insert(BulkString(String::from("BGREWRITEAOF")), Box::new(BgRewriteAofCommand));
+        commands.insert(BulkString(String::from("INCR")), Box::new(IncrCommand));
 
         CommandHandler {
             commands,
