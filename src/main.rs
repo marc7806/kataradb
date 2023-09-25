@@ -6,6 +6,7 @@ mod store;
 mod active_expiration;
 mod eviction;
 mod object_type_encoding;
+mod stats;
 
 fn main() {
     println!("Starting kataradb");

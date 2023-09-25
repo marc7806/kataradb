@@ -5,6 +5,7 @@ use crate::eviction::eviction::EvictionManager;
 use crate::eviction::eviction::EvictionPolicyType::SIMPLE;
 use crate::object_type_encoding::{get_type, OBJ_ENCODING_EMBSTR, OBJ_ENCODING_INT, OBJ_ENCODING_RAW, OBJ_TYPE_STRING};
 use crate::resp::DataType;
+use crate::stats::update_keyspace_statistics;
 
 #[derive(Debug)]
 #[derive(PartialEq)]
@@ -73,10 +74,16 @@ impl Store {
 
         let store_object = StoreObject::new(value, expires_at, type_encoding);
         self.data.insert(String::from(key), store_object);
+
+        update_keyspace_statistics(0, self.data.len() as u64);
     }
 
     pub fn remove(&mut self, key: &str) -> Option<StoreObject> {
-        return self.data.remove(key);
+        let removed_key = self.data.remove(key);
+
+        update_keyspace_statistics(0, self.data.len() as u64);
+
+        removed_key
     }
 
     pub fn get(&mut self, key: &str) -> Option<StoreObject> {
