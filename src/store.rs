@@ -1,8 +1,8 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
-use crate::eviction::eviction::EvictionManager;
-use crate::eviction::eviction::EvictionPolicyType::SIMPLE;
+use crate::eviction::eviction::{EvictionManager, EvictionManagerConfiguration};
+use crate::eviction::eviction::EvictionPolicyType::{AllKeysRandom};
 use crate::object_type_encoding::{get_type, OBJ_ENCODING_EMBSTR, OBJ_ENCODING_INT, OBJ_ENCODING_RAW, OBJ_TYPE_STRING};
 use crate::resp::DataType;
 use crate::stats::update_keyspace_statistics;
@@ -49,7 +49,7 @@ impl Store {
     pub fn new() -> Self {
         Store {
             data: HashMap::new(),
-            eviction_manager: Some(EvictionManager::new(5, SIMPLE.get_eviction_policy())),
+            eviction_manager: Some(EvictionManager::new(EvictionManagerConfiguration { keys_limit: 5, eviction_ratio: 0.4 }, AllKeysRandom.get_eviction_policy())),
         }
     }
 
