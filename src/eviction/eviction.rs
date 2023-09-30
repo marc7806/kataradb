@@ -1,5 +1,5 @@
-use crate::eviction::all_keys_random_eviction_policy::AllKeysRandomEvictionPolicy;
-use crate::eviction::simple_eviction_policy::SimpleEvictionPolicy;
+use crate::eviction::all_keys_random_eviction_strategy::AllKeysRandomEvictionStrategy;
+use crate::eviction::simple_eviction_strategy::SimpleEvictionStrategy;
 use crate::store::Store;
 
 pub struct EvictionManagerConfiguration {
@@ -8,39 +8,25 @@ pub struct EvictionManagerConfiguration {
 }
 
 pub struct EvictionManager {
-    pub eviction_policy: Box<dyn EvictionPolicy>,
+    pub strategy: Box<dyn EvictionStrategy>,
     pub config: EvictionManagerConfiguration,
 }
 
-pub trait EvictionPolicy {
+pub trait EvictionStrategy {
     fn evict(&self, config: &EvictionManagerConfiguration, store: &mut Store) -> Result<(), String>;
 }
 
-pub enum EvictionPolicyType {
-    Simple,
-    AllKeysRandom
-}
-
-impl EvictionPolicyType {
-    pub fn get_eviction_policy(&self) -> Box<dyn EvictionPolicy> {
-        match self {
-            EvictionPolicyType::Simple => Box::new(SimpleEvictionPolicy {}),
-            EvictionPolicyType::AllKeysRandom => Box::new(AllKeysRandomEvictionPolicy {}),
-        }
-    }
-}
-
 impl EvictionManager {
-    pub fn new(config: EvictionManagerConfiguration, eviction_policy: Box<dyn EvictionPolicy>) -> EvictionManager {
+    pub fn new(config: EvictionManagerConfiguration, strategy: Box<dyn EvictionStrategy>) -> EvictionManager {
         return EvictionManager {
             config,
-            eviction_policy
+            strategy
         }
     }
 
     pub fn evict(&mut self, store: &mut Store) {
         println!("Evicting keys...");
-        match self.eviction_policy.evict(&self.config, store) {
+        match self.strategy.evict(&self.config, store) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("Error while evicting keys: {}", err);

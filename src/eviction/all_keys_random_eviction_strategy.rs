@@ -1,9 +1,9 @@
-use crate::eviction::eviction::{EvictionManagerConfiguration, EvictionPolicy};
+use crate::eviction::eviction::{EvictionManagerConfiguration, EvictionStrategy};
 use crate::store::Store;
 
-pub struct AllKeysRandomEvictionPolicy {}
+pub struct AllKeysRandomEvictionStrategy {}
 
-impl EvictionPolicy for AllKeysRandomEvictionPolicy {
+impl EvictionStrategy for AllKeysRandomEvictionStrategy {
     fn evict(&self, config: &EvictionManagerConfiguration, store: &mut Store) -> Result<(), String> {
         let mut keys_to_remove = Vec::new();
         let num_keys_to_remove = (config.keys_limit as f64 * config.eviction_ratio) as usize;
