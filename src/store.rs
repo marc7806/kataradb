@@ -1,6 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use crate::eviction::all_keys_random_eviction_strategy::AllKeysRandomEvictionStrategy;
+use crate::eviction::all_keys_lru_eviction_strategy::AllKeysLRUEvictionStrategy;
 
 use crate::eviction::eviction::{EvictionManager, EvictionManagerConfiguration};
 use crate::object_type_encoding::{get_type, OBJ_ENCODING_EMBSTR, OBJ_ENCODING_INT, OBJ_ENCODING_RAW, OBJ_TYPE_STRING};
@@ -52,7 +52,7 @@ impl Store {
         Store {
             data: HashMap::new(),
             expiration_data: HashMap::new(),
-            eviction_manager: Some(EvictionManager::new(EvictionManagerConfiguration { keys_limit: 5, eviction_ratio: 0.4 }, Box::new(AllKeysRandomEvictionStrategy{}))),
+            eviction_manager: Some(EvictionManager::new(EvictionManagerConfiguration { keys_limit: 5, eviction_ratio: 0.4 }, Box::new(AllKeysLRUEvictionStrategy::new()))),
         }
     }
 

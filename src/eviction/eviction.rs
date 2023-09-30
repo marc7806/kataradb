@@ -1,10 +1,16 @@
-use crate::eviction::all_keys_random_eviction_strategy::AllKeysRandomEvictionStrategy;
-use crate::eviction::simple_eviction_strategy::SimpleEvictionStrategy;
 use crate::store::Store;
+
+/// see https://redis.io/docs/reference/eviction/
 
 pub struct EvictionManagerConfiguration {
     pub keys_limit: u64,
     pub eviction_ratio: f64,
+}
+
+impl EvictionManagerConfiguration {
+    pub fn get_keys_to_remove(&self) -> u64 {
+        return (self.keys_limit as f64 * self.eviction_ratio) as u64;
+    }
 }
 
 pub struct EvictionManager {
@@ -13,7 +19,7 @@ pub struct EvictionManager {
 }
 
 pub trait EvictionStrategy {
-    fn evict(&self, config: &EvictionManagerConfiguration, store: &mut Store) -> Result<(), String>;
+    fn evict(&mut self, config: &EvictionManagerConfiguration, store: &mut Store) -> Result<(), String>;
 }
 
 impl EvictionManager {

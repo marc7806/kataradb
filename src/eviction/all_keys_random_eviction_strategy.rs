@@ -4,9 +4,9 @@ use crate::store::Store;
 pub struct AllKeysRandomEvictionStrategy {}
 
 impl EvictionStrategy for AllKeysRandomEvictionStrategy {
-    fn evict(&self, config: &EvictionManagerConfiguration, store: &mut Store) -> Result<(), String> {
+    fn evict(&mut self, config: &EvictionManagerConfiguration, store: &mut Store) -> Result<(), String> {
         let mut keys_to_remove = Vec::new();
-        let num_keys_to_remove = (config.keys_limit as f64 * config.eviction_ratio) as usize;
+        let num_keys_to_remove = config.get_keys_to_remove();
         let mut i = 0;
 
         for (key, _) in store.get_data().iter() {
