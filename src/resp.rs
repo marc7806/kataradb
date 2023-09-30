@@ -430,8 +430,8 @@ mod tests {
 
     fn get_test_stream(messages: Vec<&str>) -> TcpStream {
         let addr = get_test_ipv4();
-        let mut listener = TcpListener::bind(addr).expect("Can not bind test listener for accepting connections");
-        let mut listener_guard = scopeguard::guard(listener, |listener| {
+        let listener = TcpListener::bind(addr).expect("Can not bind test listener for accepting connections");
+        let listener_guard = scopeguard::guard(listener, |listener| {
             println!("Closing test listener");
             drop(listener)
         });

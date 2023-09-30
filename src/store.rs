@@ -22,16 +22,16 @@ pub struct StoreObject {
     pub type_encoding: u8,
     // stores the actual value of the object, e.g. a pointer to a string
     pub value: Box<ObjectValue>,
-    // stores the expiration in unix epoch milliseconds
-    pub expires_at: i64,
+    // as we have no native support for bitfields in Rust, we store the last accessed timestamp as 32bit instead of 24bit
+    pub last_accessed_at: u32,
 }
 
 impl StoreObject {
-    pub fn new(value: ObjectValue, expires_at: i64, type_encoding: u8) -> Self {
+    pub fn new(value: ObjectValue, type_encoding: u8) -> Self {
         StoreObject {
             value: Box::new(value),
-            expires_at,
             type_encoding,
+            last_accessed_at: get_current_clock()
         }
     }
 
@@ -42,6 +42,8 @@ impl StoreObject {
 
 pub struct Store {
     data: HashMap<String, StoreObject>,
+    // stores the expiration of keys in unix epoch milliseconds
+    expiration_data: HashMap<String, i64>,
     eviction_manager: Option<EvictionManager>,
 }
 
@@ -49,6 +51,7 @@ impl Store {
     pub fn new() -> Self {
         Store {
             data: HashMap::new(),
+            expiration_data: HashMap::new(),
             eviction_manager: Some(EvictionManager::new(EvictionManagerConfiguration { keys_limit: 5, eviction_ratio: 0.4 }, AllKeysRandom.get_eviction_policy())),
         }
     }
@@ -62,24 +65,22 @@ impl Store {
         self.eviction_manager = Some(eviction_manager);
         //
 
-        let expires_at =
-            if expiration_duration_ms > 0 {
-                let now = chrono::Utc::now();
-                let duration = chrono::Duration::milliseconds(expiration_duration_ms);
-                let expires_at = now + duration;
-                expires_at.timestamp_millis()
-            } else {
-                -1
-            };
-
-        let store_object = StoreObject::new(value, expires_at, type_encoding);
+        let store_object = StoreObject::new(value, type_encoding);
         self.data.insert(String::from(key), store_object);
+
+        if expiration_duration_ms > 0 {
+            let now = chrono::Utc::now();
+            let duration = chrono::Duration::milliseconds(expiration_duration_ms);
+            let expires_at = now + duration;
+            self.expiration_data.insert(String::from(key), expires_at.timestamp_millis());
+        }
 
         update_keyspace_statistics(0, self.data.len() as u64);
     }
 
     pub fn remove(&mut self, key: &str) -> Option<StoreObject> {
         let removed_key = self.data.remove(key);
+        self.expiration_data.remove(key);
 
         update_keyspace_statistics(0, self.data.len() as u64);
 
@@ -87,16 +88,18 @@ impl Store {
     }
 
     pub fn get(&mut self, key: &str) -> Option<StoreObject> {
+        let has_expired = &self.has_expired(key);
+
         match self.data.entry(key.to_string()) {
-            Entry::Occupied(entry) => {
-                // Check whether store_object is expired
-                let store_object = entry.get();
-                let now = chrono::Utc::now().timestamp_millis();
-                if store_object.expires_at != -1 && store_object.expires_at < now {
+            Entry::Occupied(mut entry) => {
+                if *has_expired {
                     entry.remove();
                     return None;
                 }
 
+                entry.get_mut().last_accessed_at = get_current_clock();
+
+                let store_object = entry.get();
                 Some(store_object.clone())
             }
             Entry::Vacant(_) => {
@@ -105,8 +108,27 @@ impl Store {
         }
     }
 
+    fn has_expired(&self, key: &str) -> bool {
+        let now = chrono::Utc::now().timestamp_millis();
+        let expires_at = self.expiration_data.get(key);
+
+        if expires_at.is_none() {
+            return false;
+        }
+
+       *expires_at.unwrap() <= now
+    }
+
     pub fn get_data(&self) -> &HashMap<String, StoreObject> {
         &self.data
+    }
+
+    pub fn get_expiration_data(&self) -> &HashMap<String, i64> {
+        &self.expiration_data
+    }
+
+    pub fn get_expiry(&self, key: &str) -> Option<i64> {
+        self.expiration_data.get(key).cloned()
     }
 }
 
@@ -127,6 +149,12 @@ pub fn store_object_to_datatype(value: &StoreObject) -> DataType {
     }
 }
 
+fn get_current_clock() -> u32 {
+    let now = chrono::Utc::now();
+    let now = now.timestamp_millis();
+    (now & 0xFFFFFFFF) as u32
+}
+
 #[test]
 fn test_store_put_get() {
     // given
@@ -141,16 +169,17 @@ fn test_store_put_get() {
     let key = store.get("key").expect("Key not found");
     assert_eq!(key.type_encoding, OBJ_TYPE_STRING | OBJ_ENCODING_RAW);
     assert_eq!(key.get_value_clone(), ObjectValue::String("value".to_string()));
-    assert_eq!(key.expires_at, -1);
+    assert_eq!(store.get_expiry("key"), None);
 
     let key2 = store.get("key2").expect("Key not found");
     assert_eq!(key2.type_encoding, OBJ_TYPE_STRING | OBJ_ENCODING_INT);
     assert_eq!(key2.get_value_clone(), ObjectValue::String("123".to_string()));
-    assert_eq!(key2.expires_at, chrono::Utc::now().timestamp_millis() + 1000);
+    assert_eq!(store.get_expiry("key2").unwrap(), chrono::Utc::now().timestamp_millis() + 1000);
 
     let key4 = store.get("key4").expect("Key not found");
     assert_eq!(key4.type_encoding, OBJ_TYPE_STRING | OBJ_ENCODING_EMBSTR);
-    assert_eq!(key4.expires_at, chrono::Utc::now().timestamp_millis() + 2000);
+    assert_eq!(key4.get_value_clone(), ObjectValue::String(String::from("12345678901234567890123456789012345678901234567890test12345")));
+    assert_eq!(store.get_expiry("key4").unwrap(), chrono::Utc::now().timestamp_millis() + 2000);
 }
 
 #[test]
