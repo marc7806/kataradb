@@ -59,7 +59,7 @@ impl CommandHandler {
         self.parser.flush_stream(stream);
     }
 
-    fn execute_cmd(&mut self, store: &mut Store, request: DataType) -> DataType {
+    pub fn execute_cmd(&mut self, store: &mut Store, request: DataType) -> DataType {
         return match request {
             DataType::Array(data) => {
                 let requested_cmd = &data[0];

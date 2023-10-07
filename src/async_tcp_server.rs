@@ -2,12 +2,15 @@ use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, TcpListener};
 use std::os::fd::{AsRawFd, RawFd};
 
-use libc::timespec;
+use libc::{timespec};
+use DataType::{Array, BulkString};
 
 use crate::active_expiration::ActiveExpirationManager;
 use crate::cmd::handler::CommandHandler;
 use crate::io_multiplexer::darwin_io_multiplexer::DarwinIOMultiplexer;
 use crate::io_multiplexer::io_multiplexer::{Event, IOMultiplexer};
+use crate::resp::DataType;
+use crate::signal::listen_for_shutdown_signals;
 use crate::store::Store;
 
 const PORT: i16 = 9977;
@@ -21,11 +24,11 @@ pub fn setup_server() {
 }
 
 fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store) {
-    // listen to incoming connections
-    let io_multiplex = DarwinIOMultiplexer::new(MAX_CLIENT_CONNECTIONS);
+    // listen to process signals
+    let signal_receiver = listen_for_shutdown_signals().expect("Can not listen for process signals");
 
-    // scope guard in order to defer the close function on scope exit
-    let mut io_multiplexer = scopeguard::guard(io_multiplex, |io_multiplexer| io_multiplexer.close());
+    // listen to incoming connections
+    let mut io_multiplexer = DarwinIOMultiplexer::new(MAX_CLIENT_CONNECTIONS);
 
     // register tcp server socket - needed in order to listen for new client connections
     let event = Event::new(listener_fd, libc::EVFILT_READ);
@@ -40,6 +43,15 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
 
     // event loop
     loop {
+        // check for shutdown signals
+        match signal_receiver.try_recv() {
+            Ok(_) => {
+                cleanup(&mut io_multiplexer, store, &mut command_handler);
+                std::process::exit(0);
+            }
+            Err(_) => {}
+        }
+
         active_expiration_manager.run_loop(store);
 
         let events = io_multiplexer.poll(timespec { tv_sec: 0, tv_nsec: 0 });
@@ -66,7 +78,7 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
                         }
                     } else {
                         let stream = client_connections.get_mut(&event.fd).expect("Can not get stream");
-                        
+
                         if event.has_data {
                             command_handler.handle_bulk(stream, store);
                         }
@@ -85,6 +97,11 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
             }
         }
     }
+}
+
+fn cleanup(io_multiplexer: &mut DarwinIOMultiplexer, store: &mut Store, cmd_handler: &mut CommandHandler) {
+    io_multiplexer.close();
+    cmd_handler.execute_cmd(store, Array(vec![BulkString("BGREWRITEAOF".to_string())]));
 }
 
 fn setup_tcp_listener() -> (TcpListener, RawFd) {
