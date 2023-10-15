@@ -1,4 +1,4 @@
-use crate::cmd::handler::Command;
+use crate::cmd::command::Command;
 use crate::resp::DataType;
 use crate::store::Store;
 

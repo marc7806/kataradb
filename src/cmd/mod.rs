@@ -1,6 +1,7 @@
 pub mod handler;
-
+pub mod command;
 mod transaction;
+
 mod cmd_ping;
 mod cmd_set;
 mod cmd_get;

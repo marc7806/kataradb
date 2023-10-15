@@ -3,14 +3,13 @@ use std::net::{IpAddr, Ipv4Addr, TcpListener};
 use std::os::fd::{AsRawFd, RawFd};
 
 use libc::{timespec};
-use DataType::{Array, BulkString};
 
 use crate::active_expiration::ActiveExpirationManager;
 use crate::client::ClientConnection;
+use crate::cmd::command::SimpleCommand::BGREWRITEAOF;
 use crate::cmd::handler::CommandHandler;
 use crate::io_multiplexer::darwin_io_multiplexer::DarwinIOMultiplexer;
 use crate::io_multiplexer::io_multiplexer::{Event, IOMultiplexer};
-use crate::resp::DataType;
 use crate::signal::listen_for_shutdown_signals;
 use crate::store::Store;
 
@@ -102,7 +101,7 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
 
 fn cleanup(io_multiplexer: &mut DarwinIOMultiplexer, store: &mut Store, cmd_handler: &mut CommandHandler) {
     io_multiplexer.close();
-    cmd_handler.execute_cmd(store, Array(vec![BulkString("BGREWRITEAOF".to_string())]));
+    cmd_handler.execute_simple_command(&BGREWRITEAOF, &mut Vec::new(), store);
 }
 
 fn setup_tcp_listener() -> (TcpListener, RawFd) {

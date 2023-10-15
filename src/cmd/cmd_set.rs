@@ -1,4 +1,4 @@
-use crate::cmd::handler::Command;
+use crate::cmd::command::Command;
 use crate::object_type_encoding::{get_string_encoding, OBJ_TYPE_STRING};
 use crate::resp::DataType;
 use crate::resp::DataType::{Error, SimpleString};

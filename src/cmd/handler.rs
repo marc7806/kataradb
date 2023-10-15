@@ -1,43 +1,27 @@
 use std::collections::HashMap;
+use DataType::Error;
 use crate::client::ClientConnection;
 
-use crate::cmd::cmd_bgrewriteaof::BgRewriteAofCommand;
-use crate::cmd::cmd_del::DelCommand;
-use crate::cmd::cmd_expire::ExpireCommand;
-use crate::cmd::cmd_get::GetCommand;
-use crate::cmd::cmd_incr::IncrCommand;
-use crate::cmd::cmd_info::InfoCommand;
-use crate::cmd::cmd_ping::PingCommand;
-use crate::cmd::cmd_set::SetCommand;
-use crate::cmd::cmd_ttl::TTLCommand;
+use crate::cmd::command::{Command, get_commands, is_simple_command, SimpleCommand};
 use crate::cmd::transaction::{is_transaction_command, TransactionCommand};
 use crate::resp::{DataType, RESPParser};
 use crate::resp::DataType::{BulkString, SimpleString};
 use crate::store::Store;
 
-pub trait Command {
-    fn execute(&self, args: &mut Vec<String>, store: &mut Store) -> DataType;
-}
+const OK: &str = "OK";
+const NOT_SUPPORTED_COMMAND: &str = "Not supported command";
+const WRONG_ARGUMENT_TYPE: &str = "Wrong argument type";
+const QUEUED: &str = "QUEUED";
 
 pub struct CommandHandler {
-    commands: HashMap<DataType, Box<dyn Command>>,
+    commands: HashMap<SimpleCommand, Box<dyn Command>>,
     parser: RESPParser,
 }
 
 impl CommandHandler {
     pub fn new() -> Self {
         let parser = RESPParser::new();
-
-        let mut commands: HashMap<DataType, Box<dyn Command>> = HashMap::new();
-        commands.insert(BulkString(String::from("PING")), Box::new(PingCommand));
-        commands.insert(BulkString(String::from("SET")), Box::new(SetCommand));
-        commands.insert(BulkString(String::from("GET")), Box::new(GetCommand));
-        commands.insert(BulkString(String::from("TTL")), Box::new(TTLCommand));
-        commands.insert(BulkString(String::from("DEL")), Box::new(DelCommand));
-        commands.insert(BulkString(String::from("EXPIRE")), Box::new(ExpireCommand));
-        commands.insert(BulkString(String::from("BGREWRITEAOF")), Box::new(BgRewriteAofCommand));
-        commands.insert(BulkString(String::from("INCR")), Box::new(IncrCommand));
-        commands.insert(BulkString(String::from("INFO")), Box::new(InfoCommand));
+        let commands = get_commands();
 
         CommandHandler {
             commands,
@@ -52,21 +36,22 @@ impl CommandHandler {
 
         let mut results = Vec::new();
         for cmd_request in cmd_requests.drain(..) {
-            if !cmd_request.is_array() {
-                results.push(DataType::Error(String::from("Not supported command")));
+            if cmd_request.as_array().is_none() {
+                results.push(Error(NOT_SUPPORTED_COMMAND.to_string()));
                 continue;
             }
 
-            let command = &cmd_request.as_array()[0];
+            let request = cmd_request.as_array().unwrap();
+            let command = &request[0];
 
-            if let Some(transaction_cmd) = is_transaction_command(&command) {
+            if let Some(transaction_cmd) = is_transaction_command(command) {
                 let result = self.execute_transaction_command(transaction_cmd, connection, store);
                 results.push(result);
             } else if connection.is_transaction_active {
-                connection.cmd_queue.push(cmd_request.clone());
-                results.push(SimpleString(String::from("QUEUED")));
+                connection.cmd_queue.push(cmd_request);
+                results.push(SimpleString(QUEUED.to_string()));
             } else {
-                let result = self.execute_cmd(store, cmd_request);
+                let result = self.handle_simple_command_request(cmd_request, store);
                 results.push(result);
             }
         }
@@ -75,33 +60,39 @@ impl CommandHandler {
         self.parser.flush_stream(&mut connection.stream);
     }
 
-    pub fn execute_cmd(&mut self, store: &mut Store, request: DataType) -> DataType {
-        return match request {
-            DataType::Array(data) => {
-                let requested_cmd = &data[0];
+    pub fn handle_simple_command_request(&mut self, cmd_request: DataType, store: &mut Store) -> DataType {
+        if cmd_request.as_array().is_none() {
+            return Error(NOT_SUPPORTED_COMMAND.to_string());
+        }
 
-                match self.commands.get(requested_cmd) {
-                    Some(command) => {
-                        let result_args = self.extract_args(&data);
-                        match result_args {
-                            Ok(mut args) => {
-                                command.execute(&mut args, store)
-                            }
-                            Err(err) => {
-                                DataType::Error(err)
-                            }
-                        }
-                    }
-                    None => {
-                        SimpleString(String::from("OK"))
-                    }
-                }
+        let request = cmd_request.as_array().unwrap();
+        if request.len() < 1 {
+            return Error(NOT_SUPPORTED_COMMAND.to_string());
+        }
+
+        if is_simple_command(&request[0]).is_none() {
+            return Error(NOT_SUPPORTED_COMMAND.to_string());
+        }
+
+        let command = is_simple_command(&request[0]).unwrap();
+
+        let args = self.extract_args(&request);
+        if args.is_none() {
+            return Error(WRONG_ARGUMENT_TYPE.to_string());
+        }
+
+        return self.execute_simple_command(&command, &mut args.unwrap(), store);
+    }
+
+    pub fn execute_simple_command(&mut self, command: &SimpleCommand, args: &mut Vec<String>, store: &mut Store) -> DataType {
+        return match self.commands.get(&command) {
+            Some(command) => {
+                command.execute(args, store)
             }
-            _ => {
-                println!("Got not supported command");
-                DataType::Error(String::from("Not supported command"))
+            None => {
+                SimpleString(OK.to_string())
             }
-        };
+        }
     }
 
     fn execute_transaction_command(&mut self, cmd: TransactionCommand, client_connection: &mut ClientConnection, store: &mut Store) -> DataType {
@@ -109,12 +100,12 @@ impl CommandHandler {
             TransactionCommand::MULTI => {
                 client_connection.is_transaction_active = true;
                 println!("Transaction started");
-                SimpleString(String::from("OK"))
+                SimpleString(OK.to_string())
             }
             TransactionCommand::EXEC => {
                 let mut results = Vec::new();
                 for cmd in client_connection.cmd_queue.drain(..) {
-                    let result = self.execute_cmd(store, cmd);
+                    let result = self.handle_simple_command_request(cmd, store);
                     results.push(result);
                 }
 
@@ -125,12 +116,12 @@ impl CommandHandler {
                 println!("Transaction discarded");
                 client_connection.cmd_queue.clear();
                 client_connection.is_transaction_active = false;
-                SimpleString(String::from("OK"))
+                SimpleString(OK.to_string())
             }
         }
     }
 
-    fn extract_args(&self, data: &Vec<DataType>) -> Result<Vec<String>, String> {
+    fn extract_args(&self, data: &Vec<DataType>) -> Option<Vec<String>> {
         let mut result = Vec::new();
 
         // skip first element, because it is the command
@@ -140,11 +131,11 @@ impl CommandHandler {
                     result.push(value.clone());
                 }
                 _ => {
-                    return Err(String::from("Wrong argument type"));
+                    return None;
                 }
             }
         }
 
-        Ok(result)
+        Some(result)
     }
 }

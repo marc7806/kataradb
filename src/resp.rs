@@ -27,6 +27,7 @@ pub struct RESPParser {
 #[derive(Hash)]
 #[derive(Clone)]
 pub enum DataType {
+    // todo: do we need String here?
     SimpleString(String),
     Integer(i64),
     // i64 because int can be negative
@@ -37,17 +38,10 @@ pub enum DataType {
 }
 
 impl DataType {
-    pub fn is_array(&self) -> bool {
+    pub fn as_array(&self) -> Option<&Vec<DataType>> {
         return match self {
-            DataType::Array(_) => true,
-            _ => false,
-        };
-    }
-
-    pub fn as_array(&self) -> &Vec<DataType> {
-        return match self {
-            DataType::Array(array) => array,
-            _ => panic!("Can not convert to array"),
+            DataType::Array(array) => Some(array),
+            _ => None
         };
     }
 }
