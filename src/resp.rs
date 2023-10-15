@@ -36,6 +36,22 @@ pub enum DataType {
     Error(String),
 }
 
+impl DataType {
+    pub fn is_array(&self) -> bool {
+        return match self {
+            DataType::Array(_) => true,
+            _ => false,
+        };
+    }
+
+    pub fn as_array(&self) -> &Vec<DataType> {
+        return match self {
+            DataType::Array(array) => array,
+            _ => panic!("Can not convert to array"),
+        };
+    }
+}
+
 impl RESPParser {
     pub fn new() -> RESPParser {
         return RESPParser {

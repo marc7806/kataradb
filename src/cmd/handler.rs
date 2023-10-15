@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::TcpStream;
+use crate::client::ClientConnection;
 
 use crate::cmd::cmd_bgrewriteaof::BgRewriteAofCommand;
 use crate::cmd::cmd_del::DelCommand;
@@ -10,6 +10,7 @@ use crate::cmd::cmd_info::InfoCommand;
 use crate::cmd::cmd_ping::PingCommand;
 use crate::cmd::cmd_set::SetCommand;
 use crate::cmd::cmd_ttl::TTLCommand;
+use crate::cmd::transaction::{is_transaction_command, TransactionCommand};
 use crate::resp::{DataType, RESPParser};
 use crate::resp::DataType::{BulkString, SimpleString};
 use crate::store::Store;
@@ -45,18 +46,33 @@ impl CommandHandler {
     }
 
     /// Handle commands in a pipeline
-    pub fn handle_bulk(&mut self, stream: &mut TcpStream, store: &mut Store) {
-        let mut cmd_requests = self.parser.decode_next_bulk(stream).expect("Can not decode data type");
+    pub fn handle_bulk(&mut self, connection: &mut ClientConnection, store: &mut Store) {
+        let mut cmd_requests = self.parser.decode_next_bulk(&mut connection.stream).expect("Can not decode data type");
         println!("Received commands: {:?}", cmd_requests);
 
         let mut results = Vec::new();
         for cmd_request in cmd_requests.drain(..) {
-            let result = self.execute_cmd(store, cmd_request);
-            results.push(result);
+            if !cmd_request.is_array() {
+                results.push(DataType::Error(String::from("Not supported command")));
+                continue;
+            }
+
+            let command = &cmd_request.as_array()[0];
+
+            if let Some(transaction_cmd) = is_transaction_command(&command) {
+                let result = self.execute_transaction_command(transaction_cmd, connection, store);
+                results.push(result);
+            } else if connection.is_transaction_active {
+                connection.cmd_queue.push(cmd_request.clone());
+                results.push(SimpleString(String::from("QUEUED")));
+            } else {
+                let result = self.execute_cmd(store, cmd_request);
+                results.push(result);
+            }
         }
 
-        self.parser.write_to_stream(stream, results);
-        self.parser.flush_stream(stream);
+        self.parser.write_to_stream(&mut connection.stream, results);
+        self.parser.flush_stream(&mut connection.stream);
     }
 
     pub fn execute_cmd(&mut self, store: &mut Store, request: DataType) -> DataType {
@@ -84,6 +100,32 @@ impl CommandHandler {
             _ => {
                 println!("Got not supported command");
                 DataType::Error(String::from("Not supported command"))
+            }
+        };
+    }
+
+    fn execute_transaction_command(&mut self, cmd: TransactionCommand, client_connection: &mut ClientConnection, store: &mut Store) -> DataType {
+        match cmd {
+            TransactionCommand::MULTI => {
+                client_connection.is_transaction_active = true;
+                println!("Transaction started");
+                SimpleString(String::from("OK"))
+            }
+            TransactionCommand::EXEC => {
+                let mut results = Vec::new();
+                for cmd in client_connection.cmd_queue.drain(..) {
+                    let result = self.execute_cmd(store, cmd);
+                    results.push(result);
+                }
+
+                client_connection.is_transaction_active = false;
+                DataType::Array(results)
+            }
+            TransactionCommand::DISCARD => {
+                println!("Transaction discarded");
+                client_connection.cmd_queue.clear();
+                client_connection.is_transaction_active = false;
+                SimpleString(String::from("OK"))
             }
         }
     }

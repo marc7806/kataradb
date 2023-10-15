@@ -6,6 +6,7 @@ use libc::{timespec};
 use DataType::{Array, BulkString};
 
 use crate::active_expiration::ActiveExpirationManager;
+use crate::client::ClientConnection;
 use crate::cmd::handler::CommandHandler;
 use crate::io_multiplexer::darwin_io_multiplexer::DarwinIOMultiplexer;
 use crate::io_multiplexer::io_multiplexer::{Event, IOMultiplexer};
@@ -69,7 +70,7 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
                         let event = Event::new(stream_fd, libc::EVFILT_READ);
                         match io_multiplexer.register(event) {
                             Ok(_) => {
-                                client_connections.insert(stream_fd, stream);
+                                client_connections.insert(stream_fd, ClientConnection::new(stream));
                             }
                             Err(e) => {
                                 println!("{}", e);
@@ -77,10 +78,10 @@ fn start_event_loop(listener: TcpListener, listener_fd: RawFd, store: &mut Store
                             }
                         }
                     } else {
-                        let stream = client_connections.get_mut(&event.fd).expect("Can not get stream");
+                        let mut client_connection = client_connections.get_mut(&event.fd).expect("Can not get stream");
 
                         if event.has_data {
-                            command_handler.handle_bulk(stream, store);
+                            command_handler.handle_bulk(&mut client_connection, store);
                         }
 
                         if event.connection_closed {

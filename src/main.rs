@@ -8,6 +8,7 @@ mod eviction;
 mod object_type_encoding;
 mod stats;
 mod signal;
+mod client;
 
 fn main() {
     println!("Starting kataradb");
